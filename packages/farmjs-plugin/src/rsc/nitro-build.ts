@@ -15,7 +15,7 @@ import {
   readdirSync,
   statSync,
 } from "fs";
-import type { NitroConfig } from "nitro/config";
+import type { NitroConfig } from "nitro/types";
 import { resolveRscBuildOutputPath } from "./build-paths.js";
 
 const MANIFEST_FILENAME = "__vite_rsc_assets_manifest.js";
@@ -50,6 +50,39 @@ function copyDir(src: string, dest: string, ignoredNames = new Set<string>()): v
     const destPath = path.join(dest, name);
     if (statSync(srcPath).isDirectory()) copyDir(srcPath, destPath, ignoredNames);
     else copyFileSync(srcPath, destPath);
+  }
+}
+
+/** @internal */
+export function rewriteRscEntryImports(serverDir: string, serverDistDir: string): void {
+  const entryChunkPaths: string[] = [];
+  const findEntryChunks = (dir: string) => {
+    if (!existsSync(dir)) return;
+    for (const name of readdirSync(dir)) {
+      const candidate = path.join(dir, name);
+      if (statSync(candidate).isDirectory()) findEntryChunks(candidate);
+      else if (name === "rsc-entry.mjs") entryChunkPaths.push(candidate);
+    }
+  };
+  for (const chunksDir of ["chunks", "_chunks", "_build"]) {
+    findEntryChunks(path.join(serverDir, chunksDir));
+  }
+  for (const entryChunkPath of entryChunkPaths) {
+    let code = readFileSync(entryChunkPath, "utf-8");
+    const relativeImport = (target: string) => {
+      const relative = path.relative(path.dirname(entryChunkPath), target).replace(/\\/g, "/");
+      return relative.startsWith(".") ? relative : `./${relative}`;
+    };
+    // Match any path that ends with dist/rsc/index.js or dist/ssr/index.js (minified, no spaces)
+    code = code.replace(
+      /(["'`])[^"'`]*?dist\/rsc\/index\.js\1/g,
+      JSON.stringify(relativeImport(path.join(serverDistDir, "rsc", "index.js"))),
+    );
+    code = code.replace(
+      /(["'`])[^"'`]*?dist\/ssr\/index\.js\1/g,
+      JSON.stringify(relativeImport(path.join(serverDistDir, "ssr", "index.js"))),
+    );
+    writeFileSync(entryChunkPath, code, "utf-8");
   }
 }
 
@@ -230,7 +263,8 @@ const handler = getFetchHandler(entryExports);
 
 function createRscRequest(event) {
   const node = event.node;
-  if (!node?.req || !node?.res) return event.req;
+  const request = event.req?._request || event.req;
+  if (!node?.req || !node?.res) return request;
 
   const controller = new AbortController();
   const cleanup = () => {
@@ -252,7 +286,7 @@ function createRscRequest(event) {
   node.res.once("finish", cleanup);
   if (node.req.aborted) abort();
 
-  return new Request(event.req, { signal: controller.signal });
+  return new Request(request, { signal: controller.signal });
 }
 
 export default defineEventHandler(async (event) => {
@@ -297,7 +331,7 @@ export async function buildRscNitro(options: BuildRscNitroOptions): Promise<void
     preset = "vercel",
   } = options;
 
-  const { build, copyPublicAssets, createNitro, prepare } = await import("nitro");
+  const { build, copyPublicAssets, createNitro, prepare } = await import("nitro/builder");
 
   console.log(`[FARM] Building RSC server with Nitro (preset: ${preset})...`);
 
@@ -324,23 +358,28 @@ export async function buildRscNitro(options: BuildRscNitroOptions): Promise<void
 
   const config: NitroConfig = {
     preset,
+    // The RSC plugin supports Vite 6+, while Nitro's beta Vite builder follows
+    // its own Vite 8 peer range. The prebuilt renderer works with Rolldown and
+    // keeps the app's Vite version out of Nitro's production build contract.
+    builder: "rolldown",
     rootDir: root,
-    srcDir: root,
+    serverDir: root,
     buildDir,
     dev: false,
+    alias: {
+      h3: runtimeRequire.resolve("h3"),
+    },
     output: {
       dir: outputDir,
       serverDir,
       publicDir: publicOutDir,
     },
     publicAssets,
-    renderer: { entry: entryPath },
+    renderer: { handler: entryPath },
     // The prebuilt RSC/SSR bundles are copied after Nitro finishes, so Nitro's
     // module graph cannot otherwise see their bare package imports. Trace both
     // entry points explicitly to keep node-server output self-contained.
-    externals: {
-      traceInclude: [rendererPath, ...(ssrPath ? [ssrPath] : [])],
-    },
+    traceDeps: [rendererPath, ...(ssrPath ? [ssrPath] : [])],
     // Externalize rsc/ssr so we don't bundle (they reference Vite-generated manifest). We copy dist into server output after build.
     rollupConfig: {
       external: (id: string) => {
@@ -385,36 +424,9 @@ export async function buildRscNitro(options: BuildRscNitroOptions): Promise<void
     );
   }
 
-  // Nitro may group the entry under chunks/build or chunks/_ depending on the
-  // selected builder. Find it by name and make copied-dist imports relative to
-  // the emitted chunk so the output survives being moved away from the project.
-  const entryChunkPaths: string[] = [];
-  const findEntryChunks = (dir: string) => {
-    if (!existsSync(dir)) return;
-    for (const name of readdirSync(dir)) {
-      const candidate = path.join(dir, name);
-      if (statSync(candidate).isDirectory()) findEntryChunks(candidate);
-      else if (name === "rsc-entry.mjs") entryChunkPaths.push(candidate);
-    }
-  };
-  findEntryChunks(path.join(serverDir, "chunks"));
-  for (const entryChunkPath of entryChunkPaths) {
-    let code = readFileSync(entryChunkPath, "utf-8");
-    const relativeImport = (target: string) => {
-      const relative = path.relative(path.dirname(entryChunkPath), target).replace(/\\/g, "/");
-      return relative.startsWith(".") ? relative : `./${relative}`;
-    };
-    // Match any path that ends with dist/rsc/index.js or dist/ssr/index.js (minified, no spaces)
-    code = code.replace(
-      /(["'`])[^"'`]*?dist\/rsc\/index\.js\1/g,
-      JSON.stringify(relativeImport(path.join(serverDistDir, "rsc", "index.js"))),
-    );
-    code = code.replace(
-      /(["'`])[^"'`]*?dist\/ssr\/index\.js\1/g,
-      JSON.stringify(relativeImport(path.join(serverDistDir, "ssr", "index.js"))),
-    );
-    writeFileSync(entryChunkPath, code, "utf-8");
-  }
+  // Nitro may group the entry differently by builder. Make copied-dist imports
+  // relative to the emitted chunk so output survives moving away from the project.
+  rewriteRscEntryImports(serverDir, serverDistDir);
 
   // Patch SSR bundle: inject production client CSS href and bootstrap script so HTML has styles and hydration works
   const ssrIndexPath = path.join(serverDistDir, "ssr", "index.js");

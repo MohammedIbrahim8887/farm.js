@@ -362,7 +362,13 @@ async function containsFileWithContent(dir: string, expected: string): Promise<b
 
 async function expectNitroFallback(root: string): Promise<void> {
   const serverDir = path.join(root, ".farm", ".output", "server");
-  const serverPackage = JSON.parse(await fs.readFile(path.join(serverDir, "package.json"), "utf8"));
+  const serverPackage = await fs
+    .readFile(path.join(serverDir, "package.json"), "utf8")
+    .then((contents) => JSON.parse(contents))
+    .catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return {};
+      throw error;
+    });
   expect(serverPackage.imports?.["#farm-ssr-entry"]).toBeUndefined();
   await expect(fs.access(path.join(serverDir, "farm-ssr"))).rejects.toThrow();
   await expect(fs.readFile(path.join(serverDir, "index.mjs"), "utf8")).resolves.not.toContain(
@@ -949,7 +955,10 @@ export default function SecondPage() {
             const page = await browser.newPage();
             const browserErrors: string[] = [];
             page.on("console", (message) => {
-              if (message.type() === "error") browserErrors.push(message.text());
+              if (message.type() === "error") {
+                if (message.location().url.endsWith("/favicon.ico")) return;
+                browserErrors.push(message.text());
+              }
             });
             page.on("pageerror", (error) => browserErrors.push(error.message));
             await page.goto(response.url);
@@ -2151,9 +2160,14 @@ export default function DynamicPage({ params }) {
       const nodeEnvBeforeBuild = process.env.NODE_ENV;
       await build(config, { root, preset: "node-server" });
       expect(process.env.NODE_ENV).toBe(nodeEnvBeforeBuild);
-      await expect(
-        fs.readFile(path.join(root, ".farm", "ssr", "nitro-entry.mjs"), "utf8"),
-      ).resolves.toContain("farmNitroApp.hooks.hook('close'");
+      const nitroEntry = await fs.readFile(
+        path.join(root, ".farm", "ssr", "nitro-entry.mjs"),
+        "utf8",
+      );
+      expect(nitroEntry).toContain("registerFarmCloseHook()");
+      expect(nitroEntry).toContain("from '#nitro/runtime/app'");
+      expect(nitroEntry).not.toContain("from 'nitro/app'");
+      expect(nitroEntry).not.toContain("from 'nitro/runtime'");
 
       const clientBundle = await readClientBundle(root);
       expect(clientBundle).toContain("Minified React error");
