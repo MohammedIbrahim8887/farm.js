@@ -12,7 +12,12 @@
     renderFarmFunctionComponent,
   } from "../runtime";
 
-  let { element } = $props();
+  let { element: initialElement } = $props();
+  let element = $state(initialElement);
+
+  export function render(nextElement) {
+    element = nextElement;
+  }
 </script>
 
 {#snippet renderNode(value)}
