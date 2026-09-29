@@ -93,6 +93,7 @@ import { createFarmSourceAlias } from "../server/vite-config";
 import { DEFAULT_NOT_FOUND_STYLES } from "../components/not-found-styles";
 import { createFarmThemeCssPlugin } from "../theme/vite";
 import { resolveFarmInstrumentationFile } from "../instrumentation";
+import { getFarmPresetRuntime } from "../deployment";
 import { resolveFarmInstrumentationRuntime } from "../instrumentation-runtime";
 import {
   getFarmRendererCapabilities,
@@ -333,6 +334,51 @@ async function canUseRolldownBuilder(): Promise<boolean> {
     // Rolldown is optional so --no-optional installs retain Rollup.
     return false;
   }
+}
+
+/**
+ * Alias that points React's server entry at a Web-stream build.
+ *
+ * React splits `react-dom/server` by export condition: the Node build exports
+ * renderToPipeableStream, and only the Web builds export renderToReadableStream.
+ * React 19 ships `./server.edge` for Workers and edge runtimes. Its
+ * `./server.browser` build schedules work through a global MessageChannel,
+ * which a Cloudflare Worker only exposes on recent compatibility dates, so it
+ * can fail at module load. React 18 has no edge build, and its browser build
+ * does not need MessageChannel.
+ */
+export function createFarmReactWebServerAlias(hasEdgeBuild: boolean) {
+  return {
+    find: /^react-dom\/server$/,
+    replacement: hasEdgeBuild ? "react-dom/server.edge" : "react-dom/server.browser",
+  };
+}
+
+/** Whether the app's installed React DOM exports the dedicated edge server build. */
+export function hasReactDomEdgeServerBuild(root: string): boolean {
+  try {
+    createRequire(path.join(root, "package.json")).resolve("react-dom/server.edge");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the SSR graph must resolve React's server entry to the Web-stream
+ * build instead of the Node one.
+ *
+ * Vite resolves the SSR graph with Node conditions, and React applications
+ * bundle react-dom rather than externalizing it, so without this an edge
+ * preset inlines the Node build. React 18's Node build has no
+ * `renderToReadableStream`, so the edge renderer cannot stream at all; React
+ * 19's Node build streams only through Node built-in polyfills.
+ */
+export function shouldAliasReactServerToWebBuild(
+  renderer: Pick<FarmRenderer, "name"> | undefined,
+  preset: string,
+): boolean {
+  return isReactRenderer(renderer) && getFarmPresetRuntime(preset) === "edge";
 }
 
 function isCloudflareImagePreset(preset: string): boolean {
@@ -4199,7 +4245,14 @@ async function buildSSRInMemory(
           }
         : undefined,
       resolve: {
-        alias: createFarmSourceAlias(root, config.srcDir),
+        alias: [
+          ...(shouldAliasReactServerToWebBuild(config.renderer, preset)
+            ? [createFarmReactWebServerAlias(hasReactDomEdgeServerBuild(root))]
+            : []),
+          ...Object.entries(createFarmSourceAlias(root, config.srcDir)).map(
+            ([find, replacement]) => ({ find, replacement }),
+          ),
+        ],
         // Route modules and the renderer adapter must share one runtime instance.
         dedupe: [...(config.renderer.dedupe || [])],
       },
