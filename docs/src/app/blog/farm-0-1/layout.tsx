@@ -72,8 +72,6 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
         </div>
       </div>
       <BlogExplore />
-      <script src="/blog-navigation.js" defer />
-      <script src="/blog-code.js" defer />
     </>
   );
 }

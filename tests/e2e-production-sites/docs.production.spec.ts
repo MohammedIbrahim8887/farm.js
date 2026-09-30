@@ -154,6 +154,94 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   expect(browserErrors).toEqual([]);
 });
 
+test("blog enhancements survive client navigation, re-entry, and back/forward without reloads", async ({
+  page,
+  context,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await page.evaluate(() => {
+    Reflect.set(window, "blogNavigationDocument", true);
+    Reflect.set(window, "blogCopyCalls", 0);
+    const writeText = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = (text) => {
+      Reflect.set(window, "blogCopyCalls", Reflect.get(window, "blogCopyCalls") + 1);
+      return writeText(text);
+    };
+  });
+
+  async function checkArtwork() {
+    expect(await page.evaluate(() => Reflect.get(window, "blogNavigationDocument"))).toBe(true);
+    await expect(page.locator(".blog-release-art")).toHaveAttribute("data-motion", "running");
+    await expect(page.locator(".blog-art-reel").first()).toHaveCSS(
+      "animation-name",
+      "blog-digit-roll",
+    );
+    expect(
+      await page.evaluate(() => {
+        const oldArticle = Reflect.get(window, "previousBlogArticle") as HTMLElement | undefined;
+        return (
+          !oldArticle ||
+          (!oldArticle.isConnected &&
+            [...oldArticle.querySelectorAll<HTMLButtonElement>(".blog-code-copy")].every(
+              (button) => button.hidden && !button.disabled,
+            ) &&
+            [...oldArticle.querySelectorAll("[data-copy-status]")].every(
+              (status) => !status.textContent,
+            ))
+        );
+      }),
+    ).toBe(true);
+  }
+
+  async function checkArticle() {
+    await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
+    await checkArtwork();
+    await expect(page.locator(".blog-code-copy:visible")).toHaveCount(6);
+    const nav = page.locator(".blog-contents-links").first();
+    const link = nav.getByRole("link", { name: "Built with Farm: Viby" });
+    await link.click();
+    await expect(link).toHaveAttribute("aria-current", "location");
+    await expect(nav).toHaveAttribute("data-highlight-ready", "true");
+    const block = page.locator(".blog-code-block").first();
+    const calls = await page.evaluate(() => Reflect.get(window, "blogCopyCalls"));
+    await block.getByRole("button").click();
+    await expect(block.getByRole("status")).toHaveText("Code copied to clipboard.");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      await block.locator("pre > code").textContent(),
+    );
+    expect(await page.evaluate(() => Reflect.get(window, "blogCopyCalls"))).toBe(calls + 1);
+    await page.evaluate(() =>
+      Reflect.set(window, "previousBlogArticle", document.querySelector(".blog-reading-grid")),
+    );
+  }
+
+  await page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: /Blog/ })
+    .click();
+  await checkArtwork();
+  await page.locator(".blog-read-link").click();
+  await checkArticle();
+  await page.getByRole("link", { name: "All posts", exact: true }).click();
+  await checkArtwork();
+  await page.locator(".blog-read-link").click();
+  await checkArticle();
+  await page.getByRole("link", { name: "All posts", exact: true }).click();
+  await page.goBack();
+  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(6);
+  await expect(page.locator(".blog-contents-links").first()).toHaveAttribute(
+    "data-highlight-ready",
+    "true",
+  );
+  await page.goForward();
+  await checkArtwork();
+  expect(errors).toEqual([]);
+});
+
 test("shared artwork rolls down, waves, pauses offscreen, and respects reduced motion", async ({
   page,
 }) => {
@@ -234,7 +322,8 @@ test("every code block copies exact source and exposes recoverable clipboard fai
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.goto("/blog/farm-0-1");
+  await page.goto("/blog");
+  await page.locator(".blog-read-link").click();
   const blocks = page.locator(".blog-code-block");
   await expect(blocks).toHaveCount(6);
   for (const block of await blocks.all()) {
@@ -243,7 +332,7 @@ test("every code block copies exact source and exposes recoverable clipboard fai
     await expect(button).toBeVisible();
     const bounds = await button.boundingBox();
     await button.click();
-    await expect(button).toHaveText("Copied");
+    await expect(button).toHaveText("COPIED");
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text);
     expect((await button.boundingBox())!.width).toBe(bounds!.width);
     await expect(block.getByRole("status")).toHaveText("Code copied to clipboard.");
@@ -256,15 +345,15 @@ test("every code block copies exact source and exposes recoverable clipboard fai
   });
   const first = blocks.first();
   await first.getByRole("button").click();
-  await expect(first.getByRole("button")).toHaveText("Retry");
+  await expect(first.getByRole("button")).toHaveText("RETRY");
   await expect(first.getByRole("status")).toContainText("Could not copy");
-  await expect(first.getByRole("button")).toHaveText("Copy");
+  await expect(first.getByRole("button")).toHaveText("COPY");
   await page.evaluate(() => {
     delete (navigator.clipboard as unknown as { writeText?: unknown }).writeText;
   });
   await first.getByRole("button").focus();
   await page.keyboard.press("Enter");
-  await expect(first.getByRole("button")).toHaveText("Copied");
+  await expect(first.getByRole("button")).toHaveText("COPIED");
 });
 
 test("blog syntax highlighting is server-rendered and preserves every fenced code sample", async ({

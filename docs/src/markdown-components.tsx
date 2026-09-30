@@ -56,20 +56,27 @@ function Pre({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
     <div className="blog-code-block">
       <div className="blog-code-toolbar">
         <span>{label}</span>
-        <button
-          type="button"
-          className="blog-code-copy"
-          aria-label={`Copy ${label} code`}
-          title={`Copy ${label} code`}
-          hidden
-        >
-          <Copy className="blog-copy-icon" size={14} strokeWidth={1.5} aria-hidden />
-          <Check className="blog-copy-check" size={14} strokeWidth={1.5} aria-hidden />
-          <span data-copy-label>Copy</span>
-        </button>
+        <div className="blog-code-actions">
+          <span aria-hidden="true">
+            {language === "typescript" || language === "ts" ? "TS" : language}
+          </span>
+          <button
+            type="button"
+            className="blog-code-copy"
+            aria-label={`Copy ${label} code`}
+            title={`Copy ${label} code`}
+            hidden
+          >
+            <Copy className="blog-copy-icon" size={14} strokeWidth={1.8} aria-hidden />
+            <Check className="blog-copy-check" size={14} strokeWidth={1.8} aria-hidden />
+            <span data-copy-label>COPY</span>
+          </button>
+        </div>
         <span className="sr-only" role="status" data-copy-status />
       </div>
-      <pre {...props}>{children}</pre>
+      <pre tabIndex={0} aria-label={`${label} code`} {...props}>
+        {children}
+      </pre>
     </div>
   );
 }

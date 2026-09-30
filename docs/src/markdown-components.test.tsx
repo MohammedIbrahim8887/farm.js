@@ -18,7 +18,11 @@ describe("Markdown code", () => {
     expect(html).toContain('aria-label="Copy Terminal code"');
     expect(html).toContain('hidden=""');
     expect(html).toContain('role="status"');
-    expect(html).toContain('<pre><code class="language-bash"');
+    expect(html).toContain(
+      '<pre tabindex="0" aria-label="Terminal code"><code class="language-bash"',
+    );
+    expect(html).toContain('class="blog-code-actions"');
+    expect(html).toContain('aria-hidden="true">bash</span>');
   });
   it.each([
     ["bash", 'curl -H "Accept: text/markdown" https://farmjs.dev/blog/farm-0-1\n'],

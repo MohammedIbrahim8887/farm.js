@@ -750,36 +750,47 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 44px;
+  min-height: 40px;
+  gap: 1rem;
   border-bottom: 1px solid var(--blog-line);
-  padding-left: 16px;
+  padding-left: 0.85rem;
   color: #929292;
   font-family: var(--font-geist-mono), monospace;
-  font-size: 9px;
-  letter-spacing: 0.08em;
+  font-size: 0.61rem;
+  letter-spacing: 0.045em;
   text-transform: uppercase;
+}
+.blog-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
 }
 .blog-code-copy:not([hidden]) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: 96px;
-  min-height: 44px;
+  gap: 0.35rem;
+  width: 74px;
+  min-height: 40px;
+  padding: 0 0.55rem;
   border-left: 1px solid var(--blog-line);
   color: #b7b7b7;
-  background: transparent;
+  background: #18181b;
   font: inherit;
+  font-size: 0.62rem;
   text-transform: inherit;
+  white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 150ms ease-out,
-    color 150ms ease-out;
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
 }
-.blog-code-copy:hover,
+.blog-code-copy:hover:not(:disabled),
 .blog-code-copy:focus-visible {
   color: #ededed;
-  background: #151515;
+  border-color: #444;
+  background: #202023;
 }
 .blog-code-copy:active {
   background: #202020;
@@ -794,6 +805,15 @@
 }
 .blog-code-copy[data-state="copied"] .blog-copy-check {
   display: block;
+}
+@media (pointer: coarse) {
+  .blog-code-copy:not([hidden]) {
+    min-height: 44px;
+  }
+}
+.blog-prose pre:focus-visible {
+  outline: 1px solid #ededed;
+  outline-offset: -3px;
 }
 .blog-prose pre code {
   font-family: inherit;

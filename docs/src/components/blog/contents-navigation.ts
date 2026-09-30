@@ -1,22 +1,25 @@
 // Progressive enhancement for the server-rendered Markdown article. Native
 // anchors remain usable without JavaScript; scrolling and history stay native.
-(() => {
-  const navigation = [...document.querySelectorAll(".blog-contents-links")];
+export function enhanceContents(root: HTMLElement) {
+  const navigation = [...root.querySelectorAll<HTMLElement>(".blog-contents-links")];
   if (!navigation.length) return;
 
-  const sections = [...navigation[0].querySelectorAll("a[href^='#']")]
+  const sections = [...navigation[0].querySelectorAll<HTMLAnchorElement>("a[href^='#']")]
     .map((link) => document.getElementById(link.hash.slice(1)))
-    .filter(Boolean);
+    .filter((section): section is HTMLElement => section !== null && root.contains(section));
   if (!sections.length) return;
 
   let activeId = sections[0].id;
   let frame = 0;
+  const controller = new AbortController();
+  const { signal } = controller;
+  const observers: ResizeObserver[] = [];
   const updateNavigation = navigation.map((nav) => {
     const links = [...nav.querySelectorAll("a")];
-    const highlight = nav.querySelector(".blog-contents-highlight");
-    const indicator = nav.querySelector(".blog-contents-indicator");
-    let pointerLink = null;
-    let focusedLink = null;
+    const highlight = nav.querySelector<HTMLElement>(".blog-contents-highlight");
+    const indicator = nav.querySelector<HTMLElement>(".blog-contents-indicator");
+    let pointerLink: HTMLAnchorElement | null = null;
+    let focusedLink: HTMLAnchorElement | null = null;
 
     function update() {
       const current = links.find((link) => link.hash === `#${activeId}`);
@@ -37,39 +40,57 @@
     }
 
     for (const link of links) {
-      link.addEventListener("pointerenter", (event) => {
-        if (
-          event.pointerType !== "mouse" ||
-          !matchMedia("(hover: hover) and (pointer: fine)").matches
-        )
-          return;
-        nav.dataset.input = "pointer";
-        pointerLink = link;
-        focusedLink = null;
-        update();
-      });
-      link.addEventListener("focus", () => {
-        if (!link.matches(":focus-visible")) return;
-        nav.dataset.input = "keyboard";
-        focusedLink = link;
-        pointerLink = null;
-        update();
-      });
-      link.addEventListener("blur", () => {
-        focusedLink = null;
-        update();
-      });
+      link.addEventListener(
+        "pointerenter",
+        (event) => {
+          if (
+            event.pointerType !== "mouse" ||
+            !matchMedia("(hover: hover) and (pointer: fine)").matches
+          )
+            return;
+          nav.dataset.input = "pointer";
+          pointerLink = link;
+          focusedLink = null;
+          update();
+        },
+        { signal },
+      );
+      link.addEventListener(
+        "focus",
+        () => {
+          if (!link.matches(":focus-visible")) return;
+          nav.dataset.input = "keyboard";
+          focusedLink = link;
+          pointerLink = null;
+          update();
+        },
+        { signal },
+      );
+      link.addEventListener(
+        "blur",
+        () => {
+          focusedLink = null;
+          update();
+        },
+        { signal },
+      );
     }
     function clearPointer() {
       pointerLink = null;
       update();
     }
-    nav.addEventListener("pointerleave", clearPointer);
-    nav.addEventListener("pointercancel", clearPointer);
-    nav.addEventListener("pointerdown", () => {
-      nav.dataset.input = "pointer";
-    });
-    new ResizeObserver(update).observe(nav);
+    nav.addEventListener("pointerleave", clearPointer, { signal });
+    nav.addEventListener("pointercancel", clearPointer, { signal });
+    nav.addEventListener(
+      "pointerdown",
+      () => {
+        nav.dataset.input = "pointer";
+      },
+      { signal },
+    );
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    observers.push(observer);
     return update;
   });
 
@@ -91,23 +112,28 @@
   function scheduleUpdate() {
     if (!frame) frame = requestAnimationFrame(updateSection);
   }
-  window.addEventListener("scroll", scheduleUpdate, { passive: true });
-  window.addEventListener("resize", scheduleUpdate);
-  window.addEventListener("hashchange", scheduleUpdate);
-  window.addEventListener("pageshow", scheduleUpdate);
+  window.addEventListener("scroll", scheduleUpdate, { passive: true, signal });
+  window.addEventListener("resize", scheduleUpdate, { signal });
+  window.addEventListener("hashchange", scheduleUpdate, { signal });
+  window.addEventListener("pageshow", scheduleUpdate, { signal });
   window.addEventListener(
     "wheel",
     () => {
       for (const nav of navigation) nav.dataset.input = "scroll";
     },
-    { passive: true },
+    { passive: true, signal },
   );
   window.addEventListener(
     "touchstart",
     () => {
       for (const nav of navigation) nav.dataset.input = "scroll";
     },
-    { passive: true },
+    { passive: true, signal },
   );
   updateSection();
-})();
+  return () => {
+    controller.abort();
+    cancelAnimationFrame(frame);
+    for (const observer of observers) observer.disconnect();
+  };
+}
