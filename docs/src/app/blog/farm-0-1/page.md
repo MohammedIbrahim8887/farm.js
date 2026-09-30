@@ -1,62 +1,117 @@
 ---
-title: "FarmJS 0.1: a stable, agent-native full-stack framework"
-description: "FarmJS 0.1 is the first release with a compatibility promise. What stable means, what is still beta, and how FarmJS apps work for the agents reading and calling them."
+title: "FarmJS 0.1: Stable, Integrated, and Agent-Native"
+description: "FarmJS 0.1 is the first release with a compatibility promise. A tour of what shipped: DevTools, the plugin and integration ecosystems, five renderers, a CLI that explains your app, and apps built for agents."
 ---
 
-# FarmJS 0.1: a stable, agent-native full-stack framework
+# FarmJS 0.1: Stable, Integrated, and Agent-Native
 
 KinfeMichael Tariku · October 2026
 
 FarmJS 0.1 is out. It is the first release with a compatibility promise, and the first one I am comfortable calling stable.
 
-That word needed a definition before I could use it, so here is what it means for 0.1.
+It is also a good moment to show everything that landed during the betas, because FarmJS is a lot more than a router now. There is a DevTools workspace, an ecosystem of plugins and product integrations, five renderers, a CLI that explains and repairs your app, and apps that work for the agents reading and calling them.
 
 ## What stable means
 
 Patch releases (`0.1.1`, `0.1.2`) fix bugs. They do not break stable APIs, configuration, generated route types, or production output.
 
-A minor release (`0.2.0`) can change a stable API, but only after that API was deprecated in an earlier minor release, kept working, and documented with a migration path.
+A minor release (`0.2.0`) can change a stable API, but only after that API was deprecated in an earlier minor release, kept working, and documented with a migration path. Experimental features stay opt-in, can change in any release, and cost nothing when they are off.
 
-Experimental features stay opt-in. They can change in any release, and when they are off they cost nothing.
-
-Not everything is stable yet, and I would rather say that plainly:
-
-- **Stable:** core, the CLI, the app generator, devtools, the plugin API, and the first-party integrations. They release together at the same version.
-- **Beta:** the Preact, Solid, Vue, and Svelte renderers, and most plugins. They work and are tested, but their APIs can still move.
+- **Stable:** core, the CLI, the app generator, DevTools, the plugin API, and the first-party integrations. They release together at the same version.
+- **Beta:** the Preact, Solid, Vue, and Svelte renderers, and most plugins. Tested and supported, but their APIs can still move.
 - **Experimental:** React Server Components, Partial Prerendering, isolated hydration, the React compiler, WebMCP, federation, and WebAssembly components.
 
-The full list lives on the [Stability and Support](https://farmjs.dev/docs/stability) page, including which deployment targets are verified and how.
+The full breakdown, including which deployment targets are verified and how, is on the [Stability and Support](https://farmjs.dev/docs/stability) page.
 
-## Built for the people and the agents using your app
+## The app foundation
 
-More of the traffic hitting a product is not a person in a browser. It is an agent reading a page, calling an API, or acting on someone's behalf. I wanted FarmJS apps to handle that by default instead of as an afterthought.
+The parts every product needs, typed end to end:
 
-### Every page has a Markdown version
+- **App-directory routing** with generated route types, layouts, route groups, and loading and error boundaries.
+- **Typed APIs and data.** API routes produce a typed client (`apiClient.hello.get()`), and server queries give you deduplicated, prefetchable, invalidatable reads defined once on the server.
+- **Rendering control.** Streaming SSR, static generation, ISR-style revalidation, shared cache helpers with tag and path invalidation, and per-route runtime, region, and duration hints.
+- **Built-ins you would otherwise assemble:** internationalization with typed ICU messages and RTL, light and dark themes with a pre-paint selector, responsive images, self-hosted fonts, cron schedules that compile to each platform's native triggers, `after()` for post-response work, a KV storage layer, and layers for sharing app directories between projects.
 
-Every route in a FarmJS app has a Markdown representation with no configuration. Ask for it with a `.md` suffix or an `Accept` header:
+## Five renderers, one framework
+
+React is the default. Preact, Solid, Vue, and Svelte use the same routing, APIs, middleware, integrations, and deployment. You can pick a renderer when you create an app:
+
+```bash
+pnpm create @farm.js/app my-app --template basic --renderer vue
+```
+
+The other four are beta in 0.1, and a test-checked [capability matrix](https://farmjs.dev/docs/renderers) shows exactly what each one supports, including streaming per deployment target.
+
+## An integrations ecosystem
+
+Most products are the same dozen services wired together. FarmJS integrations are typed packages that mount their routes, webhooks, client bindings, and configuration through one model, and `farm add integration` scaffolds them:
+
+```bash
+farm add integration stripe
+```
+
+What is available in 0.1:
+
+- **Auth:** Better Auth, Auth.js, Clerk, Auth0, WorkOS, and Supabase, plus Farm's built-in auth.
+- **Billing:** Stripe, Autumn, and Polar.
+- **Email:** Resend.
+- **Background jobs:** Trigger.dev and Inngest.
+- **Content:** Sanity and Contentful.
+- **API keys:** Unkey.
+- **AI and agents:** AI SDK chat routes, Cloudflare Agents, and Eve.
+
+Integrations can also scaffold working screens through a shadcn-style UI registry, and schema-backed integrations can share your relational models through [@farming-labs/orm](https://orm.farming-labs.dev).
+
+## A plugin ecosystem, starting with DevTools
+
+**DevTools** ships in every new app. Open it from the button in the corner or with `Cmd + Shift + .` to browse your routes and their runtime settings, inspect configured integrations, read runtime diagnostics, and compare your source with the JavaScript Vite actually served.
+
+```ts
+import { defineConfig } from "@farm.js/core";
+import { devtools } from "@farm.js/devtools";
+import { hints } from "@farm.js/hints";
+
+export default defineConfig({
+  plugins: [devtools(), hints()],
+});
+```
+
+The rest of the official plugins:
+
+- **Hints** finds accessibility, performance, and HTML problems in the live development page.
+- **Analyzer** explains page, client, and server bundle size and enforces limits in CI.
+- **Content** validates local Markdown, MDX, JSON, and YAML as typed collections.
+- **Search** builds a chunked browser search index from your static pages.
+- **PWA** generates a route-aware service worker for offline navigation and safe updates.
+- **Sync** and the local-first patterns add instant cached reads, optimistic writes, and reconnect recovery on top of the API you already have.
+- **Scripts** and **Partytown** load third-party SDKs with typed handles and consent, or move them off the main thread.
+- **Sentry** and **OpenTelemetry** report errors and traces with Farm's route and event context.
+- **StyleX**, **MSW**, **WebAssembly**, **federation**, and **WebMCP** cover styling, mocking, Wasm, independently deployed modules, and browser agent tools.
+
+## A CLI that explains your app
+
+- `farm doctor` checks your Node version, configuration, routes, deployment target, cron, and storage, and can probe a running deployment with `--url`.
+- `farm explain /some/path` tells you which route handles a URL and where it runs.
+- `farm preview` gives your local app a public URL for webhooks, OAuth callbacks, and testing on a phone.
+- `farm migrate next` and `farm migrate tanstack` move an existing Next.js App Router or TanStack Start project over. Nuxt and SvelteKit have migration guides.
+- `farm upgrade --latest` keeps every Farm package on the same release.
+
+## Built for agents too
+
+More of the traffic hitting a product is an agent reading a page, calling an API, or acting on someone's behalf. FarmJS apps handle that by default.
+
+**Every page has a Markdown version,** with no configuration. Ask with a `.md` suffix or an `Accept` header:
 
 ```bash
 curl https://your-app.com/pricing.md
 curl -H "Accept: text/markdown" https://your-app.com/pricing
 ```
 
-A `page.tsx` route is rendered on the server and converted. A `page.md` or `page.mdx` route returns its source. If the generated version is not good enough, drop a `page.md` next to `page.tsx` and FarmJS serves that instead, while browsers still get the React page.
+A `page.tsx` route is rendered and converted; a `page.md` route returns its source; a `page.md` next to a `page.tsx` overrides the generated version while browsers still get the React page. Missing routes answer agents in Markdown too.
 
-Missing routes answer agents in Markdown too, so a wrong guess gets a readable 404 instead of an HTML error page.
+**Your API describes itself.** Typed API routes produce an OpenAPI document at `/openapi.json`, pages get canonical and Open Graph defaults, and JSON-LD is one option away.
 
-### Your API describes itself
-
-Typed API routes produce an OpenAPI document, served as JSON at `/openapi.json` next to the rendered reference. Pages get a canonical URL and Open Graph defaults, and JSON-LD is one option away. An agent that lands on your app can find out what it does and how to call it.
-
-### Agents inside your app
-
-A chat endpoint is one command:
-
-```bash
-farm add integration ai
-```
-
-That writes a typed route:
+**Agents can live inside your app.** A chat endpoint is one command, `farm add integration ai`, which writes:
 
 ```ts
 import { aiChatRoute } from "@farm.js/ai";
@@ -67,52 +122,29 @@ export const POST = aiChatRoute({
 });
 ```
 
-For long-running, stateful agents, `@farm.js/cf-agent` connects [Cloudflare Agents](https://developers.cloudflare.com/agents/) to your app, and `@farm.js/eve` runs the Eve agent runtime beside it. Either way, the agent sits behind the same routing, middleware, and deployment as the rest of your app, instead of a second service with its own auth story.
+For long-running, stateful agents, Cloudflare Agents and Eve run behind the same routing, middleware, and deployment as the rest of your app. With the experimental WebMCP plugin, a page can register explicit, typed tools that a browser agent can call.
 
-### Tools the browser can hand to an agent
+**And for the agents writing your code,** routes, params, API calls, and configuration are typed and generated, so a wrong guess fails at type-check instead of in production.
 
-With the experimental `@farm.js/webmcp` plugin, a page can register typed tools that a browser agent can call:
+## Deploy where you already are
 
-```ts
-import { defineWebMCPTool } from "@farm.js/webmcp/client";
-
-export const searchProducts = defineWebMCPTool({
-  name: "search_products",
-  description: "Search products currently available in this store.",
-  inputSchema: {
-    type: "object",
-    properties: { query: { type: "string", minLength: 1 } },
-    required: ["query"],
-  },
-  annotations: { readOnlyHint: true },
-  async execute({ query }: { query: string }) {
-    const response = await fetch(`/api/products?q=${encodeURIComponent(query)}`);
-    return response.json();
-  },
-});
-```
-
-Tools are explicit and same-origin. Nothing is exposed unless you register it. WebMCP itself is still a Community Group draft, which is why this one is experimental.
-
-### And for the agents writing the code
-
-Routes, params, API calls, and configuration are typed and generated, so a coding agent's wrong guess fails at type-check instead of in production. `farm doctor` checks the Node version, configuration, routes, deployment target, and cron and storage setup in one command, and can probe a running deployment.
+`deploy.target` maps to a tested Nitro output: `node` and `vercel` are stable, `cloudflare` and `netlify` are beta, and any other Nitro preset passes through. `farm deploy` wraps the platform CLIs for Vercel, Cloudflare, and Netlify.
 
 ## How we earned "stable"
 
-I did not want 0.1 to be a relabelled beta, so most of the last stretch went into proving the release, not adding features.
+I did not want 0.1 to be a relabelled beta, so the last stretch went into proving the release rather than adding features.
 
-Every release now installs representative integrations and a freshly generated app from the packed tarballs, the way a user gets them, then type-checks, builds, and serves that app. Workspace links hide missing files and bad version pins; tarballs do not.
+Every release now installs representative integrations and a freshly generated app from the packed tarballs, the way a user gets them, then type-checks, builds, and serves that app. That check paid for itself immediately: while cutting the release candidate it caught our own integration smoke test quietly installing core from npm instead of the new build.
 
-We also ran deployment output in the real runtimes instead of trusting build logs. Booting Cloudflare output in `workerd`, Cloudflare's runtime, turned up two bugs no unit test could have caught: React apps on the `cloudflare-module` preset could not start at all, and a fix meant to give edge targets React's Web streaming build was being silently dropped from the build config. Both are fixed, and both now have build-level tests.
+We also ran deployment output in real runtimes instead of trusting build logs. Booting Cloudflare output in `workerd`, Cloudflare's runtime, turned up two bugs no unit test could have caught: React apps on the `cloudflare-module` preset could not start, and a fix meant to give edge targets React's Web streaming build was being silently dropped from the build config. Both are fixed and covered by build-level tests.
 
-The rest was a lot of small, unglamorous fixes: malformed request bodies that returned 500 instead of 400, a storage dependency that let fresh installs close a database the app still owned, and a Content Security Policy warning that stayed quiet for policies that break hydration.
+The rest was unglamorous and necessary: malformed request bodies that returned 500 instead of 400, a storage dependency that let fresh installs close a database the app still owned, and a Content Security Policy warning that stayed quiet for policies that break hydration.
 
 ## What is not there yet
 
-- **Strict script CSP.** FarmJS's inline hydration scripts do not carry nonces yet, so `script-src` has to allow `'unsafe-inline'`. Per-request nonces are next.
-- **Netlify and Cloudflare** are beta targets: their builds are tested, but only Node and Vercel are stable.
-- **MCP from your API.** Generating an MCP server from typed API routes is the next agent feature I want to ship, as an experimental plugin.
+- **Strict script CSP.** Inline hydration scripts do not carry nonces yet, so `script-src` has to allow `'unsafe-inline'`. Per-request nonces are next.
+- **Netlify and Cloudflare** builds are tested, but only Node and Vercel are stable targets.
+- **MCP from your API.** Generating an MCP server from typed API routes is the next agent feature, as an experimental plugin.
 
 ## Try it
 
@@ -120,7 +152,7 @@ The rest was a lot of small, unglamorous fixes: malformed request bodies that re
 pnpm create @farm.js/app my-app
 ```
 
-Upgrading from a beta is one command, `farm upgrade --latest`, and the [upgrade guide](https://farmjs.dev/docs/upgrading) lists the behavior changes and the deprecated APIs to move off before 0.2.
+Coming from a beta, `farm upgrade --latest` and the [upgrade guide](https://farmjs.dev/docs/upgrading) cover the behavior changes and the deprecated APIs to move off before 0.2.
 
 If something breaks, `farm doctor` output and an issue on [GitHub](https://github.com/farming-labs/farm.js/issues) is the fastest way to reach me. Thanks to everyone who ran the betas and told me what was wrong.
 
