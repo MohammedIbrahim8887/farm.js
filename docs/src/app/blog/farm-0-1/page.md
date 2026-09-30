@@ -37,7 +37,7 @@ The parts every product needs, typed end to end:
 React is the default. Preact, Solid, Vue, and Svelte use the same routing, APIs, middleware, integrations, and deployment. You can pick a renderer when you create an app:
 
 ```bash
-pnpm create @farm.js/app my-app --template basic --renderer vue
+npx @farm.js/create-app@latest my-app --template basic --renderer vue
 ```
 
 The other four are beta in 0.1, and a test-checked [capability matrix](https://farmjs.dev/docs/renderers) shows exactly what each one supports, including streaming per deployment target.
@@ -109,7 +109,7 @@ curl -H "Accept: text/markdown" https://your-app.com/pricing
 
 A `page.tsx` route is rendered and converted; a `page.md` route returns its source; a `page.md` next to a `page.tsx` overrides the generated version while browsers still get the React page. Missing routes answer agents in Markdown too.
 
-**Your API describes itself.** Typed API routes produce an OpenAPI document at `/openapi.json`, pages get canonical and Open Graph defaults, and JSON-LD is one option away.
+**Your API can describe itself.** Turn on `openapi` in `farm.config.ts` and your typed API routes produce an OpenAPI document at `/openapi.json`, next to a rendered reference. Pages get canonical and Open Graph defaults, and JSON-LD is one option away.
 
 **Agents can live inside your app.** A chat endpoint is one command, `farm add integration ai`, which writes:
 
@@ -149,8 +149,10 @@ The rest was unglamorous and necessary: malformed request bodies that returned 5
 ## Try it
 
 ```bash
-pnpm create @farm.js/app my-app
+npx @farm.js/create-app@latest my-app
 ```
+
+If you prefer pnpm, `pnpm create @farm.js/app my-app` works too. pnpm 11 and newer hold back versions published in the last day, so on release day npx is the quickest way to get 0.1.
 
 Coming from a beta, `farm upgrade --latest` and the [upgrade guide](https://farmjs.dev/docs/upgrading) cover the behavior changes and the deprecated APIs to move off before 0.2.
 
