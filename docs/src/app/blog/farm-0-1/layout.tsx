@@ -25,9 +25,8 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
   return (
     <>
       <div className="blog-breadcrumb">
-        <a href="/blog">
-          <ArrowLeft aria-hidden size={14} />
-          All posts
+        <a href="/blog" aria-label="All posts" title="All posts">
+          <ArrowLeft aria-hidden size={16} />
         </a>
         <span className="blog-eyebrow">RELEASE NOTES / 001</span>
       </div>
@@ -38,11 +37,7 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
             <time dateTime={launchPost.dateTime}>{launchPost.date}</time>
           </div>
           <h1>
-            FarmJS v0.1.0:
-            <br />
-            Stable, Integrated,
-            <br />
-            <span>and Agent-Native.</span>
+            FarmJS v0.1.0: Stable, Integrated, <span>and Agent-Native.</span>
           </h1>
           <p>{launchPost.description}</p>
           <div className="blog-post-byline">

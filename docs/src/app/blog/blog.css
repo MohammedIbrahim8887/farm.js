@@ -381,10 +381,11 @@
 .blog-breadcrumb a {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 32px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -14px;
   color: #a8a8a8;
-  font-size: 11px;
 }
 .blog-post-header {
   display: grid;
@@ -401,6 +402,7 @@
   line-height: 1.13;
   letter-spacing: -0.05em;
   margin: 24px 0 22px;
+  text-wrap: balance;
 }
 .blog-post-heading h1 > span {
   color: #929292;
@@ -425,7 +427,7 @@
 }
 .blog-reading-grid {
   display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
 }
 .blog-contents {
   min-width: 0;
@@ -702,7 +704,7 @@
     padding-inline: 32px;
   }
   .blog-reading-grid {
-    grid-template-columns: 204px minmax(0, 1fr);
+    grid-template-columns: 240px minmax(0, 1fr);
   }
   .blog-reading-column {
     padding-inline: 32px;

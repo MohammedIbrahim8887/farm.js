@@ -65,6 +65,13 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("FarmJS v0.1.0");
   await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "36px");
+  await expect(page.locator(".blog-post-heading h1 br")).toHaveCount(0);
+  await expect(page.locator(".blog-post-heading h1")).toHaveCSS("text-wrap", "balance");
+  const back = page.getByRole("link", { name: "All posts", exact: true });
+  await expect(back).toHaveText("");
+  await expect(back).toHaveAttribute("href", "/blog");
+  await expect(back).toHaveCSS("width", "44px");
+  await expect(back).toHaveCSS("height", "44px");
   await expect(page.locator(".blog-art-version")).toHaveText("v 0.1.0_");
   await expect(page.locator(".blog-post-heading > p")).toHaveText(
     "Our first stable release. Built for apps and agents.",
@@ -83,6 +90,7 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
     /^intersect(?:, intersect)?$/,
   );
   const contents = page.locator(".blog-contents");
+  await expect(contents).toHaveCSS("width", "280px");
   await expect(contents.getByRole("navigation").getByRole("link")).toHaveCount(12);
   for (const href of await contents
     .getByRole("navigation")
