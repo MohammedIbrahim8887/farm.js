@@ -1,5 +1,5 @@
 import type { Metadata } from "@farm.js/core";
-import { ArrowRight, ArrowUpRight, Newspaper } from "lucide-react";
+import { ArrowRight, Newspaper } from "lucide-react";
 import { BlogAuthor } from "../../components/blog/author";
 import { BlogExplore } from "../../components/blog/explore";
 import { ReleaseArtwork } from "../../components/blog/release-artwork";
@@ -27,9 +27,6 @@ export default function BlogPage() {
             <br />A closer look at what we’re building, and why.
           </p>
         </div>
-        <a className="blog-text-link" href="https://github.com/farming-labs/farm.js/releases">
-          Follow the releases <ArrowUpRight aria-hidden size={14} />
-        </a>
       </header>
 
       <section className="blog-featured-section" aria-labelledby="latest-title">

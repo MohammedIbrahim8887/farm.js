@@ -9,10 +9,13 @@ import { launchPost, launchSections } from "../../../lib/blog";
 function Contents() {
   return (
     <nav aria-label="On this page" className="blog-contents-links">
+      <span className="blog-contents-highlight" aria-hidden="true" />
       {launchSections.map(([id, label], index) => (
         <a key={id} href={`#${id}`}>
-          <span>{String(index + 1).padStart(2, "0")}</span>
-          {label}
+          <span className="blog-contents-index" aria-hidden="true">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <span>{label}</span>
         </a>
       ))}
     </nav>
@@ -36,7 +39,7 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
             <time dateTime={launchPost.dateTime}>{launchPost.date}</time>
           </div>
           <h1>
-            FarmJS 0.1:
+            FarmJS v0.1.0:
             <br />
             Stable, Integrated,
             <br />
@@ -47,12 +50,14 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
             <BlogAuthor />
           </div>
         </div>
-        <ReleaseArtwork compact />
+        <ReleaseArtwork fullBleed />
       </header>
       <div className="blog-reading-grid">
         <aside className="blog-contents">
           <div className="blog-contents-sticky">
-            <p className="blog-eyebrow">IN THIS ARTICLE</p>
+            <p className="blog-contents-title">
+              <span aria-hidden="true">00</span> In this article
+            </p>
             <Contents />
             <ArticleTools href={launchPost.href} />
           </div>
@@ -77,6 +82,7 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
         </div>
       </div>
       <BlogExplore />
+      <script src="/blog-navigation.js" defer />
     </>
   );
 }

@@ -38,6 +38,7 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/blog");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("The Farm journal.");
+  await expect(page.getByRole("link", { name: /Follow the releases/i })).toHaveCount(0);
   await expect(page.locator(".blog-art-version")).toHaveText("v0.1.0_");
   await expect(page.locator(".blog-featured-bottom .blog-author-name")).toHaveText(
     "KinfeMichael Tariku",
@@ -62,36 +63,113 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await page.locator(".blog-featured").click();
   await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("FarmJS 0.1");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("FarmJS v0.1.0");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "42px");
   await expect(page.locator(".blog-art-version")).toHaveText("v0.1.0_");
   await expect(page.getByRole("heading", { name: /Keep exploring/ })).toHaveCount(1);
+  await expect(page.locator(".blog-explore")).toHaveCSS("border-top-width", "1px");
+  const hero = await page.locator(".blog-post-header").boundingBox();
+  const art = await page.locator(".blog-release-art").boundingBox();
+  expect(art!.x).toBeCloseTo(hero!.x + hero!.width / 2, 0);
+  expect(art!.width).toBeCloseTo(hero!.width / 2, 0);
+  expect(art!.y).toBe(hero!.y);
+  expect(art!.height).toBeCloseTo(hero!.height - 1, 0);
+  await expect(page.locator(".blog-art-corner")).toHaveCount(0);
+  await expect(page.locator(".blog-ascii-field")).toHaveCSS(
+    "mask-composite",
+    /^intersect(?:, intersect)?$/,
+  );
   const contents = page.locator(".blog-contents");
-  await expect(contents.getByRole("navigation").getByRole("link")).toHaveCount(11);
+  await expect(contents.getByRole("navigation").getByRole("link")).toHaveCount(12);
   for (const href of await contents
     .getByRole("navigation")
     .getByRole("link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href")!))) {
     await expect(page.locator(href)).toHaveCount(1);
   }
-  await contents.getByRole("link", { name: "11 Try it" }).click();
+  await contents.getByRole("link", { name: "Built with Farm: Viby" }).click();
+  await expect(page.getByRole("heading", { name: "Built with Farm: Viby" })).toBeInViewport();
+  await expect(page.getByRole("link", { name: "Explore the SDK", exact: true })).toHaveAttribute(
+    "href",
+    "https://viby.farming-labs.dev",
+  );
+  await expect(page.getByRole("link", { name: "Try the Viby demo", exact: true })).toHaveAttribute(
+    "href",
+    "https://viby-app.farming-labs.dev",
+  );
+  await contents.getByRole("link", { name: "Try it", exact: true }).click();
   await expect(page).toHaveURL(/#try-it$/);
   await expect(
     page.getByRole("heading", { level: 2, name: "Try it", exact: true }),
   ).toBeInViewport();
-  await expect(contents.getByRole("link", { name: "Read Markdown" })).toHaveAttribute(
+  await expect(contents.getByRole("link", { name: /Read Markdown/i })).toHaveAttribute(
     "href",
     "/blog/farm-0-1.md",
   );
+  await expect(contents.getByRole("link", { name: /Read Markdown/i })).toHaveCSS(
+    "text-transform",
+    "uppercase",
+  );
+  await expect(contents.getByRole("link", { name: /View source/i })).toHaveAttribute(
+    "href",
+    "https://github.com/farming-labs/farm.js/blob/main/docs/src/app/blog/farm-0-1/page.md",
+  );
   const markdown = await page.request.get("/blog/farm-0-1.md");
   expect(markdown.ok()).toBe(true);
-  expect(await markdown.text()).toContain("# FarmJS 0.1: Stable, Integrated, and Agent-Native");
-  await contents.getByRole("link", { name: "Read Markdown" }).click();
+  expect(await markdown.text()).toContain("# FarmJS v0.1.0: Stable, Integrated, and Agent-Native");
+  expect(await markdown.text()).toContain("## Built with Farm: Viby");
+  await contents.getByRole("link", { name: /Read Markdown/i }).click();
   await expect(page).toHaveURL(/\/blog\/farm-0-1\.md$/);
-  await expect(page.locator("body")).toContainText("# FarmJS 0.1");
+  await expect(page.locator("body")).toContainText("# FarmJS v0.1.0");
   await page.goBack();
   await page.getByRole("link", { name: "All posts" }).click();
   await expect(page).toHaveURL(/\/blog$/);
   expect(browserErrors).toEqual([]);
+});
+
+test("article sidebar tracks native navigation, reading position, pointer, and keyboard focus", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/blog/farm-0-1");
+  const nav = page.locator(".blog-contents-links").first();
+  const first = nav.getByRole("link", { name: "What stable means", exact: true });
+  const integrations = nav.getByRole("link", { name: "Integrations", exact: true });
+  const highlight = nav.locator(".blog-contents-highlight");
+  await expect(first).toHaveAttribute("aria-current", "location");
+  await expect(nav).toHaveAttribute("data-highlight-ready", "true");
+  await integrations.click();
+  await expect(integrations).toHaveAttribute("aria-current", "location");
+  await expect(page).toHaveURL(/#an-integrations-ecosystem$/);
+  await page.locator("#built-with-farm-viby").evaluate((section) => section.scrollIntoView());
+  await expect(nav.getByRole("link", { name: "Built with Farm: Viby" })).toHaveAttribute(
+    "aria-current",
+    "location",
+  );
+  await first.hover();
+  await expect
+    .poll(async () => (await highlight.boundingBox())!.y)
+    .toBe((await first.boundingBox())!.y);
+  await expect(nav.getByRole("link", { name: "Built with Farm: Viby" })).toHaveAttribute(
+    "aria-current",
+    "location",
+  );
+  await first.focus();
+  await page.keyboard.press("Tab");
+  await expect(nav.getByRole("link", { name: "The app foundation" })).toBeFocused();
+  await expect(nav).toHaveAttribute("data-input", "keyboard");
+  await expect(highlight).toHaveCSS("transition-duration", "0s");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#the-app-foundation$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/#an-integrations-ecosystem$/);
+  await expect(integrations).toHaveAttribute("aria-current", "location");
+  await page.goto("/blog/farm-0-1#built-with-farm-viby");
+  await page.evaluate(() => document.fonts.ready);
+  await expect(nav.getByRole("link", { name: "Built with Farm: Viby" })).toHaveAttribute(
+    "aria-current",
+    "location",
+  );
 });
 
 for (const width of [320, 390, 768]) {
@@ -130,7 +208,10 @@ for (const width of [320, 390, 768]) {
       await page.locator(".blog-featured").click();
       await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
       await page.locator(".blog-mobile-contents summary").click();
-      await page.locator(".blog-mobile-contents").getByRole("link", { name: "11 Try it" }).click();
+      await page
+        .locator(".blog-mobile-contents")
+        .getByRole("link", { name: "Try it", exact: true })
+        .click();
       await expect(page).toHaveURL(/#try-it$/);
       await expect(
         page.getByRole("heading", { level: 2, name: "Try it", exact: true }),

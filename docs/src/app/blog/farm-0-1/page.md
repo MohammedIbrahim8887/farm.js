@@ -1,9 +1,9 @@
 ---
-title: "FarmJS 0.1: Stable, Integrated, and Agent-Native"
+title: "FarmJS v0.1.0: Stable, Integrated, and Agent-Native"
 description: "FarmJS 0.1 is the first release with a compatibility promise. A tour of what shipped: DevTools, the plugin and integration ecosystems, five renderers, a CLI that explains your app, and apps built for agents."
 ---
 
-# FarmJS 0.1: Stable, Integrated, and Agent-Native
+# FarmJS v0.1.0: Stable, Integrated, and Agent-Native
 
 KinfeMichael Tariku · October 2026
 
@@ -139,6 +139,20 @@ export const POST = aiChatRoute({
 For long-running, stateful agents, Cloudflare Agents and Eve run behind the same routing, middleware, and deployment as the rest of your app. With the experimental WebMCP plugin, a page can register explicit, typed tools that a browser agent can call.
 
 **And for the agents writing your code,** routes, params, API calls, and configuration are typed and generated, so a wrong guess fails at type-check instead of in production.
+
+<span id="built-with-farm-viby" className="blog-heading-anchor" />
+
+## Built with Farm: Viby
+
+We are also building with this foundation ourselves. [Viby](https://viby-app.farming-labs.dev) is a conversation-first software builder built on FarmJS and powered by [Viby SDK](https://viby.farming-labs.dev). Start with a prompt, reference files, or an existing repository, then inspect the generated source, iterate in the conversation, and preview the result in an isolated sandbox.
+
+**Viby SDK is the infrastructure behind the experience.** `@viby/sdk` is an open-source, framework-agnostic TypeScript SDK for building persistent, skill-guided vibe coding products. It handles durable chats, generation attempts and events, immutable source versions, workspace tools, and optional sandbox previews. Your application owns its interface, authentication, model credentials, and infrastructure.
+
+**The Viby app shows how those pieces come together.** The demo itself runs on FarmJS, and its generated projects start from a FarmJS baseline. Farm and design-engineering skills guide the generation; source versions let you keep iterating from the last result. You can inspect and edit files, preview the app, download the source, or use the repository and deployment integrations.
+
+The SDK is not tied to FarmJS. Farm is one supported framework, and the app is a concrete example of the kind of product you can build on top of it: your product experience, with the generation and workspace infrastructure supplied by Viby.
+
+[Explore the SDK](https://viby.farming-labs.dev) · [Try the Viby demo](https://viby-app.farming-labs.dev) · [Read the source](https://github.com/farming-labs/viby-sdk)
 
 <span id="deploy-where-you-already-are" className="blog-heading-anchor" />
 

@@ -1,28 +1,31 @@
 // A deterministic character field keeps the illustration crisp in SSR and costs
 // no canvas, animation loop, image request, or client-side dependency.
-const field = Array.from({ length: 34 }, (_, row) =>
-  Array.from({ length: 92 }, (_, column) => {
-    const x = (column - 45.5) / 23;
-    const y = (row - 16.5) / 10;
-    const distance = Math.sqrt(x * x + y * y);
-    const wave = Math.sin(distance * 8 - Math.atan2(y, x) * 2);
-    const grain = ((column * 17 + row * 31) % 11) / 11;
-    const edge = Math.max(0, 1 - Math.abs(distance - 1.28) / 0.9);
-    const density = Math.max(0, (wave * 0.3 + 0.55 + grain * 0.15) * edge);
-    return " .:;+xX#"[Math.min(7, Math.floor(density * 8))];
+const field = Array.from({ length: 56 }, (_, row) =>
+  Array.from({ length: 112 }, (_, column) => {
+    const x = column / 14;
+    const y = row / 9;
+    // Layered contours: a woven landscape instead of the previous circular field.
+    const contour = Math.sin(y * 3.8 + Math.sin(x * 0.9) * 2.4 + x * 0.65);
+    const crosswind = Math.cos(x * 1.4 - y * 0.8) * 0.18;
+    const density = Math.max(0, Math.min(1, (contour + 1) * 0.4 + crosswind));
+    return " .:-=+*#"[Math.min(7, Math.floor(density * 8))];
   }).join(""),
 ).join("\n");
 
-export function ReleaseArtwork({ compact = false }: { compact?: boolean }) {
+export function ReleaseArtwork({ fullBleed = false }: { fullBleed?: boolean }) {
   return (
     <div
-      className={`blog-release-art${compact ? " blog-release-art--compact" : ""}`}
+      className={`blog-release-art${fullBleed ? " blog-release-art--full-bleed" : ""}`}
       aria-hidden="true"
     >
-      <div className="blog-art-corner blog-art-corner--tl" />
-      <div className="blog-art-corner blog-art-corner--tr" />
-      <div className="blog-art-corner blog-art-corner--bl" />
-      <div className="blog-art-corner blog-art-corner--br" />
+      {!fullBleed && (
+        <>
+          <div className="blog-art-corner blog-art-corner--tl" />
+          <div className="blog-art-corner blog-art-corner--tr" />
+          <div className="blog-art-corner blog-art-corner--bl" />
+          <div className="blog-art-corner blog-art-corner--br" />
+        </>
+      )}
       <div className="blog-art-label">
         <span>FARM.JS</span>
         <span>RELEASE / 001</span>

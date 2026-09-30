@@ -7,6 +7,6 @@ description: "Releases, design notes, and engineering updates from the FarmJS te
 
 Releases, design notes, and engineering updates from FarmJS.
 
-## [FarmJS 0.1: Stable, Integrated, and Agent-Native](/blog/farm-0-1)
+## [FarmJS v0.1.0: Stable, Integrated, and Agent-Native](/blog/farm-0-1)
 
 FarmJS 0.1 is the first release with a compatibility promise. A tour of what shipped: DevTools, the plugin and integration ecosystems, five renderers, a CLI that explains your app, and apps built for agents.
