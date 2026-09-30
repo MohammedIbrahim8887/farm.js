@@ -147,7 +147,19 @@ export const POST = aiChatRoute({
 });
 ```
 
-For long-running, stateful agents, Cloudflare Agents and Eve run behind the same routing, middleware, and deployment as the rest of your app. With the experimental WebMCP plugin, a page can register explicit, typed tools that a browser agent can call.
+**Bring the agent framework you already use.** You do not need to rewrite your agent around a Farm.js-specific API. The Eve and Cloudflare Agents integrations connect their existing runtimes to your app, while you keep their tools, state, and client SDKs.
+
+**Eve.** Install `@farm.js/eve` alongside `eve`, then register `agent: eve()` under `integrations` in `farm.config.ts`. Keep your instructions in `agent/instructions.md` and use Eve's own `useEveAgent()` React hook. `farm dev` starts Eve alongside your app and exposes its `/eve` and workflow routes on the same origin. On Vercel, Farm.js composes the app and Eve output into one project. Eve requires Node.js 24 or newer. The [Eve guide](https://farmjs.dev/docs/integrations/eve) has the complete setup.
+
+**Cloudflare Agents.** Install `@farm.js/cf-agent`, `agents`, and Wrangler, then register `agent: cfAgent()`. Keep your Agent classes and Durable Object bindings in the standard Cloudflare files; your React UI still connects with `useAgent()` from `agents/react`. Farm.js starts Wrangler during development and proxies `/agents`, including WebSockets, through the app origin. With the `cloudflare-module` preset, the app and Agent classes build into one Worker. The [Cloudflare Agents guide](https://farmjs.dev/docs/integrations/cf-agent) covers bindings, migrations, and deployment. Cloudflare remains a beta deployment target in 0.1.
+
+Already running either agent separately? Set the adapter's `origin`, or use `EVE_BASE_URL` / `CF_AGENT_ORIGIN`, to connect an existing service instead of having Farm.js start and compose it. Your agent can keep its own deployment lifecycle.
+
+**Other agent frameworks fit through ordinary APIs.** Call a runtime-compatible SDK from a server-only [API route](https://farmjs.dev/docs/api-routes), or connect to a separately hosted agent over HTTP. Return a standard `Response`, including a stream when the SDK and deployment support it. Match the framework's client protocol and runtime requirements; this is an integration path, not a claim that every agent SDK has a built-in adapter. If the setup is reusable, package it with [`defineIntegration`](https://farmjs.dev/docs/integrations/custom) and share it independently of Farming Labs.
+
+Same-origin routing is not authentication. Protect agent HTTP and WebSocket entry points, authorize sensitive tools inside the agent runtime, and keep model credentials on the server.
+
+With the experimental WebMCP plugin, a page can also register explicit, typed tools that a browser agent can call.
 
 **And for the agents writing your code,** routes, params, API calls, and configuration are typed and generated, so a wrong guess fails at type-check instead of in production.
 

@@ -174,6 +174,29 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
   await expect(prose).toContainText(
     "removes its UI, launcher, and inspection endpoints from production output",
   );
+  for (const detail of [
+    "agent: eve()",
+    "useEveAgent()",
+    "Eve requires Node.js 24 or newer",
+    "agent: cfAgent()",
+    "useAgent()",
+    "Cloudflare remains a beta deployment target",
+    "EVE_BASE_URL / CF_AGENT_ORIGIN",
+    "Other agent frameworks fit through ordinary APIs",
+    "Same-origin routing is not authentication",
+  ]) {
+    await expect(prose).toContainText(detail);
+  }
+  for (const [label, path] of [
+    ["Eve guide", "/docs/integrations/eve"],
+    ["Cloudflare Agents guide", "/docs/integrations/cf-agent"],
+    ["API route", "/docs/api-routes"],
+  ]) {
+    await expect(prose.getByRole("link", { name: label, exact: true })).toHaveAttribute(
+      "href",
+      `https://farmjs.dev${path}`,
+    );
+  }
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
     await expect(page.locator(".blog-author small")).toHaveCSS("margin-top", "0px");
@@ -197,6 +220,11 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
     const markdown = await response.text();
     expect(markdown).toContain("Farm.js v0.1.0");
     expect(markdown).not.toContain("FarmJS");
+    if (path === "/blog/farm-0-1.md") {
+      expect(markdown).toContain("agent: eve()");
+      expect(markdown).toContain("agent: cfAgent()");
+      expect(markdown).toContain("Other agent frameworks fit through ordinary APIs");
+    }
   }
   const source = await readFile("docs/src/app/blog/farm-0-1/page.md", "utf8");
   const guides = new Set(
