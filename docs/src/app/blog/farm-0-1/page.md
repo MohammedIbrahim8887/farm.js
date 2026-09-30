@@ -144,6 +144,7 @@ The rest was unglamorous and necessary: malformed request bodies that returned 5
 
 - **Strict script CSP.** Inline hydration scripts do not carry nonces yet, so `script-src` has to allow `'unsafe-inline'`. Per-request nonces are next.
 - **Netlify and Cloudflare** builds are tested, but only Node and Vercel are stable targets.
+- **Docs on the edge.** The built-in docs engine needs a Node target for now; Cloudflare builds with docs enabled stop with an explanation.
 - **MCP from your API.** Generating an MCP server from typed API routes is the next agent feature, as an experimental plugin.
 
 ## Try it
