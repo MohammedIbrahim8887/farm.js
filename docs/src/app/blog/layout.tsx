@@ -1,19 +1,25 @@
 import type { LayoutProps } from "@farm.js/core";
+import { AnnouncementBar, SiteFooter, SiteHeader } from "../../components/site-chrome";
 import "./blog.css";
 
 export default function BlogLayout({ children }: LayoutProps) {
   return (
-    <div className="mx-auto w-full max-w-[720px] px-4 py-12 sm:px-6 sm:py-16">
-      <nav className="mb-10 flex items-center gap-3 font-mono text-xs uppercase text-white/50">
-        <a className="hover:text-white" href="/">
-          Farm.js
-        </a>
-        <span aria-hidden>/</span>
-        <a className="hover:text-white" href="/blog">
-          Blog
-        </a>
-      </nav>
-      <article className="farm-blog">{children}</article>
+    <div className="farm-home farm-blog min-h-screen overflow-x-clip bg-black font-sans text-white">
+      <a className="blog-skip-link" href="#blog-content">
+        Skip to content
+      </a>
+      <AnnouncementBar />
+      <div className="farm-page-grid">
+        <div aria-hidden className="farm-page-rail" />
+        <div className="farm-page-content min-w-0">
+          <SiteHeader activePage="blog" />
+          <main id="blog-content" tabIndex={-1}>
+            {children}
+          </main>
+          <SiteFooter />
+        </div>
+        <div aria-hidden className="farm-page-rail" />
+      </div>
     </div>
   );
 }

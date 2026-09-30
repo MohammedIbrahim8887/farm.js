@@ -11,6 +11,8 @@ FarmJS 0.1 is out. It is the first release with a compatibility promise, and the
 
 It is also a good moment to show everything that landed during the betas, because FarmJS is a lot more than a router now. There is a DevTools workspace, an ecosystem of plugins and product integrations, five renderers, a CLI that explains and repairs your app, and apps that work for the agents reading and calling them.
 
+<span id="what-stable-means" className="blog-heading-anchor" />
+
 ## What stable means
 
 Patch releases (`0.1.1`, `0.1.2`) fix bugs. They do not break stable APIs, configuration, generated route types, or production output.
@@ -23,6 +25,8 @@ A minor release (`0.2.0`) can change a stable API, but only after that API was d
 
 The full breakdown, including which deployment targets are verified and how, is on the [Stability and Support](https://farmjs.dev/docs/stability) page.
 
+<span id="the-app-foundation" className="blog-heading-anchor" />
+
 ## The app foundation
 
 The parts every product needs, typed end to end:
@@ -31,6 +35,8 @@ The parts every product needs, typed end to end:
 - **Typed APIs and data.** API routes produce a typed client (`apiClient.hello.get()`), and server queries give you deduplicated, prefetchable, invalidatable reads defined once on the server.
 - **Rendering control.** Streaming SSR, static generation, ISR-style revalidation, shared cache helpers with tag and path invalidation, and per-route runtime, region, and duration hints.
 - **Built-ins you would otherwise assemble:** internationalization with typed ICU messages and RTL, light and dark themes with a pre-paint selector, responsive images, self-hosted fonts, cron schedules that compile to each platform's native triggers, `after()` for post-response work, a KV storage layer, and layers for sharing app directories between projects.
+
+<span id="five-renderers-one-framework" className="blog-heading-anchor" />
 
 ## Five renderers, one framework
 
@@ -41,6 +47,8 @@ npx @farm.js/create-app@latest my-app --template basic --renderer vue
 ```
 
 The other four are beta in 0.1, and a test-checked [capability matrix](https://farmjs.dev/docs/renderers) shows exactly what each one supports, including streaming per deployment target.
+
+<span id="an-integrations-ecosystem" className="blog-heading-anchor" />
 
 ## An integrations ecosystem
 
@@ -61,6 +69,8 @@ What is available in 0.1:
 - **AI and agents:** AI SDK chat routes, Cloudflare Agents, and Eve.
 
 Integrations can also scaffold working screens through a shadcn-style UI registry, and schema-backed integrations can share your relational models through [@farming-labs/orm](https://orm.farming-labs.dev).
+
+<span id="a-plugin-ecosystem-starting-with-devtools" className="blog-heading-anchor" />
 
 ## A plugin ecosystem, starting with DevTools
 
@@ -88,6 +98,8 @@ The rest of the official plugins:
 - **Sentry** and **OpenTelemetry** report errors and traces with Farm's route and event context.
 - **StyleX**, **MSW**, **WebAssembly**, **federation**, and **WebMCP** cover styling, mocking, Wasm, independently deployed modules, and browser agent tools.
 
+<span id="a-cli-that-explains-your-app" className="blog-heading-anchor" />
+
 ## A CLI that explains your app
 
 - `farm doctor` checks your Node version, configuration, routes, deployment target, cron, and storage, and can probe a running deployment with `--url`.
@@ -95,6 +107,8 @@ The rest of the official plugins:
 - `farm preview` gives your local app a public URL for webhooks, OAuth callbacks, and testing on a phone.
 - `farm migrate next` and `farm migrate tanstack` move an existing Next.js App Router or TanStack Start project over. Nuxt and SvelteKit have migration guides.
 - `farm upgrade --latest` keeps every Farm package on the same release.
+
+<span id="built-for-agents-too" className="blog-heading-anchor" />
 
 ## Built for agents too
 
@@ -126,9 +140,13 @@ For long-running, stateful agents, Cloudflare Agents and Eve run behind the same
 
 **And for the agents writing your code,** routes, params, API calls, and configuration are typed and generated, so a wrong guess fails at type-check instead of in production.
 
+<span id="deploy-where-you-already-are" className="blog-heading-anchor" />
+
 ## Deploy where you already are
 
 `deploy.target` maps to a tested Nitro output: `node` and `vercel` are stable, `cloudflare` and `netlify` are beta, and any other Nitro preset passes through. `farm deploy` wraps the platform CLIs for Vercel, Cloudflare, and Netlify.
+
+<span id="how-we-earned-stable" className="blog-heading-anchor" />
 
 ## How we earned "stable"
 
@@ -140,12 +158,16 @@ We also ran deployment output in real runtimes instead of trusting build logs. B
 
 The rest was unglamorous and necessary: malformed request bodies that returned 500 instead of 400, a storage dependency that let fresh installs close a database the app still owned, and a Content Security Policy warning that stayed quiet for policies that break hydration.
 
+<span id="what-is-not-there-yet" className="blog-heading-anchor" />
+
 ## What is not there yet
 
 - **Strict script CSP.** Inline hydration scripts do not carry nonces yet, so `script-src` has to allow `'unsafe-inline'`. Per-request nonces are next.
 - **Netlify and Cloudflare** builds are tested, but only Node and Vercel are stable targets.
 - **Docs on the edge.** The built-in docs engine needs a Node target for now; Cloudflare builds with docs enabled stop with an explanation.
 - **MCP from your API.** Generating an MCP server from typed API routes is the next agent feature, as an experimental plugin.
+
+<span id="try-it" className="blog-heading-anchor" />
 
 ## Try it
 
