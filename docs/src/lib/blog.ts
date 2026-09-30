@@ -1,6 +1,6 @@
 export const launchPost = {
   href: "/blog/farm-0-1",
-  title: "FarmJS v0.1.0: Stable, Integrated, and Agent-Native",
+  title: "Farm.js v0.1.0: Stable, Integrated, and Agent-Native",
   description: "Our first stable release. Built for apps and agents.",
   author: "KinfeMichael Tariku",
   authorAvatar: "https://avatars.githubusercontent.com/u/65047246?v=4&size=96",

@@ -40,7 +40,7 @@ export default function BlogPage() {
             </div>
             <h3 id="featured-title">
               <a href={launchPost.href}>
-                FarmJS v0.1.0: <span>Stable, Integrated, and Agent-Native.</span>
+                Farm.js v0.1.0: <span>Stable, Integrated, and Agent-Native.</span>
               </a>
             </h3>
             <p>{launchPost.description}</p>

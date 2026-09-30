@@ -654,6 +654,7 @@
 .blog-prose {
   color: var(--blog-copy);
   font-size: 16px;
+  font-weight: 350;
   line-height: 1.85;
   overflow-wrap: break-word;
 }
@@ -674,11 +675,14 @@
 .blog-prose pre {
   margin: 0 0 24px;
 }
+.blog-prose p {
+  font-weight: inherit;
+}
 .blog-prose h2 {
   color: #ededed;
   margin: 52px 0 18px;
   font-size: 27px;
-  font-weight: 500;
+  font-weight: 450;
   line-height: 1.25;
   letter-spacing: -0.035em;
 }
@@ -686,6 +690,7 @@
   color: #ededed;
   margin: 32px 0 14px;
   font-size: 20px;
+  font-weight: 450;
   line-height: 1.35;
   letter-spacing: -0.02em;
 }
@@ -710,7 +715,7 @@
 }
 .blog-prose strong {
   color: #e0e0e0;
-  font-weight: 550;
+  font-weight: 500;
 }
 .blog-prose a {
   color: #e0e0e0;
@@ -739,6 +744,7 @@
   color: #d8d8d8;
   font-family: var(--font-geist-mono), monospace;
   font-size: 12px;
+  font-weight: 400;
   line-height: 1.8;
 }
 .blog-code-block {
@@ -1058,6 +1064,10 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  /* Fragment navigation scrolls the document, not the article container. */
+  html:has(.farm-blog) {
+    scroll-behavior: auto !important;
+  }
   .farm-blog *,
   .farm-blog *::before,
   .farm-blog *::after {

@@ -85,7 +85,7 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await page.locator(".blog-featured").click();
   await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("FarmJS v0.1.0");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Farm.js v0.1.0");
   await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "36px");
   await expect(page.locator(".blog-post-heading h1 br")).toHaveCount(0);
   await expect(page.locator(".blog-post-heading h1")).toHaveCSS("text-wrap", "balance");
@@ -143,15 +143,64 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await expect(page.getByText("This post is a", { exact: false })).toHaveCount(0);
   const markdown = await page.request.get("/blog/farm-0-1.md");
   expect(markdown.ok()).toBe(true);
-  expect(await markdown.text()).toContain("# FarmJS v0.1.0: Stable, Integrated, and Agent-Native");
+  expect(await markdown.text()).toContain("# Farm.js v0.1.0: Stable, Integrated, and Agent-Native");
   expect(await markdown.text()).toContain("## Built with Farm: Viby");
   await page.goto("/blog/farm-0-1.md");
   await expect(page).toHaveURL(/\/blog\/farm-0-1\.md$/);
-  await expect(page.locator("body")).toContainText("# FarmJS v0.1.0");
+  await expect(page.locator("body")).toContainText("# Farm.js v0.1.0");
   await page.goBack();
   await page.getByRole("link", { name: "All posts" }).click();
   await expect(page).toHaveURL(/\/blog$/);
   expect(browserErrors).toEqual([]);
+});
+
+test("blog uses Farm.js branding, lighter reading weights, and complete launch guidance", async ({
+  page,
+}) => {
+  await page.goto("/blog");
+  await expect(page.locator(".blog-featured h3")).toContainText("Farm.js v0.1.0");
+  await expect(page.locator("body")).not.toContainText("FarmJS");
+  await page.locator(".blog-read-link").click();
+  await expect(page).toHaveTitle("Farm.js v0.1.0: Stable, Integrated, and Agent-Native");
+  await expect(page.locator("body")).not.toContainText("FarmJS");
+  const prose = page.locator(".blog-prose");
+  await expect(prose).toContainText("Node.js 22.13 or newer");
+  await expect(prose).toContainText(
+    "Browser references require the experimental server-function transform",
+  );
+  await expect(prose).toContainText("It does not have to live under Farming Labs.");
+  await expect(prose).toContainText("farm upgrade --latest --dry-run");
+  await expect(prose).toContainText(
+    "removes its UI, launcher, and inspection endpoints from production output",
+  );
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(prose.locator("p").filter({ hasText: /^Farm\.js 0\.1 is out/ })).toHaveCSS(
+      "font-weight",
+      "350",
+    );
+    await expect(prose.locator("p").filter({ hasText: /^Patch releases/ })).toHaveCSS(
+      "font-weight",
+      "350",
+    );
+    await expect(prose.locator("li").first()).toHaveCSS("font-weight", "350");
+    await expect(prose.locator("h2").first()).toHaveCSS("font-weight", "450");
+    await expect(prose.locator("strong").first()).toHaveCSS("font-weight", "500");
+    await expect(prose.locator("pre").first()).toHaveCSS("font-weight", "400");
+    await expect(prose).toHaveCSS("font-size", width === 1440 ? "16px" : "15px");
+  }
+  for (const path of ["/blog.md", "/blog/farm-0-1.md"]) {
+    const response = await page.request.get(path);
+    expect(response.ok()).toBe(true);
+    const markdown = await response.text();
+    expect(markdown).toContain("Farm.js v0.1.0");
+    expect(markdown).not.toContain("FarmJS");
+  }
+  const source = await readFile("docs/src/app/blog/farm-0-1/page.md", "utf8");
+  const guides = new Set(
+    [...source.matchAll(/https:\/\/farmjs\.dev(\/docs\/[^)#\s]+)/g)].map((match) => match[1]),
+  );
+  for (const path of guides) await access(`docs/src/app${path}/page.md`);
 });
 
 test("blog enhancements survive client navigation, re-entry, and back/forward without reloads", async ({
@@ -392,6 +441,7 @@ test("article sidebar tracks native navigation, reading position, pointer, and k
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/blog/farm-0-1");
+  await expect(page.locator("html")).toHaveCSS("scroll-behavior", "auto");
   const nav = page.locator(".blog-contents-links").first();
   const first = nav.getByRole("link", { name: "What stable means", exact: true });
   const integrations = nav.getByRole("link", { name: "Integrations", exact: true });

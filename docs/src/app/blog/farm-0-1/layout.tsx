@@ -37,7 +37,7 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
             <time dateTime={launchPost.dateTime}>{launchPost.date}</time>
           </div>
           <h1>
-            FarmJS v0.1.0: Stable, Integrated, <span>and Agent-Native.</span>
+            Farm.js v0.1.0: Stable, Integrated, <span>and Agent-Native.</span>
           </h1>
           <p>{launchPost.description}</p>
           <div className="blog-post-byline">
