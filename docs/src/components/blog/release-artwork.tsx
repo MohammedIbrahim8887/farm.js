@@ -32,7 +32,7 @@ export function ReleaseArtwork({ fullBleed = false }: { fullBleed?: boolean }) {
       </div>
       <pre className="blog-ascii-field">{field}</pre>
       <div className="blog-art-version">
-        v0.1.0<span className="blog-art-cursor">_</span>
+        v 0.1.0<span className="blog-art-cursor">_</span>
       </div>
       <div className="blog-art-caption">
         <span>BUILT TO BUILD ON.</span>

@@ -1,6 +1,6 @@
 ---
 title: "FarmJS v0.1.0: Stable, Integrated, and Agent-Native"
-description: "FarmJS 0.1 is the first release with a compatibility promise. A tour of what shipped: DevTools, the plugin and integration ecosystems, five renderers, a CLI that explains your app, and apps built for agents."
+description: "Our first stable release. Built for apps and agents."
 ---
 
 # FarmJS v0.1.0: Stable, Integrated, and Agent-Native
@@ -194,7 +194,3 @@ If you prefer pnpm, `pnpm create @farm.js/app my-app` works too. pnpm 11 and new
 Coming from a beta, `farm upgrade --latest` and the [upgrade guide](https://farmjs.dev/docs/upgrading) cover the behavior changes and the deprecated APIs to move off before 0.2.
 
 If something breaks, `farm doctor` output and an issue on [GitHub](https://github.com/farming-labs/farm.js/issues) is the fastest way to reach me. Thanks to everyone who ran the betas and told me what was wrong.
-
----
-
-This post is a `page.md` route in a FarmJS app. Append `.md` to its URL to read it the way an agent does.

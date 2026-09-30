@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
 test.beforeAll(async () => {
@@ -39,7 +39,7 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await page.goto("/blog");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("The Farm journal.");
   await expect(page.getByRole("link", { name: /Follow the releases/i })).toHaveCount(0);
-  await expect(page.locator(".blog-art-version")).toHaveText("v0.1.0_");
+  await expect(page.locator(".blog-art-version")).toHaveText("v 0.1.0_");
   await expect(page.locator(".blog-featured-bottom .blog-author-name")).toHaveText(
     "KinfeMichael Tariku",
   );
@@ -64,8 +64,11 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("FarmJS v0.1.0");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "42px");
-  await expect(page.locator(".blog-art-version")).toHaveText("v0.1.0_");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "36px");
+  await expect(page.locator(".blog-art-version")).toHaveText("v 0.1.0_");
+  await expect(page.locator(".blog-post-heading > p")).toHaveText(
+    "Our first stable release. Built for apps and agents.",
+  );
   await expect(page.getByRole("heading", { name: /Keep exploring/ })).toHaveCount(1);
   await expect(page.locator(".blog-explore")).toHaveCSS("border-top-width", "1px");
   const hero = await page.locator(".blog-post-header").boundingBox();
@@ -102,29 +105,52 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await expect(
     page.getByRole("heading", { level: 2, name: "Try it", exact: true }),
   ).toBeInViewport();
-  await expect(contents.getByRole("link", { name: /Read Markdown/i })).toHaveAttribute(
-    "href",
-    "/blog/farm-0-1.md",
-  );
-  await expect(contents.getByRole("link", { name: /Read Markdown/i })).toHaveCSS(
-    "text-transform",
-    "uppercase",
-  );
-  await expect(contents.getByRole("link", { name: /View source/i })).toHaveAttribute(
-    "href",
-    "https://github.com/farming-labs/farm.js/blob/main/docs/src/app/blog/farm-0-1/page.md",
-  );
+  await expect(page.getByRole("group", { name: "Article resources" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Read Markdown/i })).toHaveCount(0);
+  await expect(contents.getByRole("link", { name: /View source/i })).toHaveCount(0);
+  await expect(page.getByText("This post is a", { exact: false })).toHaveCount(0);
   const markdown = await page.request.get("/blog/farm-0-1.md");
   expect(markdown.ok()).toBe(true);
   expect(await markdown.text()).toContain("# FarmJS v0.1.0: Stable, Integrated, and Agent-Native");
   expect(await markdown.text()).toContain("## Built with Farm: Viby");
-  await contents.getByRole("link", { name: /Read Markdown/i }).click();
+  await page.goto("/blog/farm-0-1.md");
   await expect(page).toHaveURL(/\/blog\/farm-0-1\.md$/);
   await expect(page.locator("body")).toContainText("# FarmJS v0.1.0");
   await page.goBack();
   await page.getByRole("link", { name: "All posts" }).click();
   await expect(page).toHaveURL(/\/blog$/);
   expect(browserErrors).toEqual([]);
+});
+
+test("blog syntax highlighting is server-rendered and preserves every fenced code sample", async ({
+  browser,
+  baseURL,
+}) => {
+  const source = await readFile("docs/src/app/blog/farm-0-1/page.md", "utf8");
+  const fences = Array.from(source.matchAll(/^```(\w+)\n([\s\S]*?)^```/gm));
+  expect(fences).toHaveLength(6);
+  const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    await page.goto("/blog/farm-0-1");
+    const blocks = page.locator(".blog-prose pre > code");
+    await expect(blocks).toHaveCount(fences.length);
+    for (const [index, [, language, code]] of fences.entries()) {
+      const block = blocks.nth(index);
+      await expect(block).toHaveAttribute("class", `language-${language}`);
+      await expect(block).toHaveAttribute("data-highlighted", "true");
+      expect(await block.textContent()).toBe(code);
+      const colors = await block
+        .locator("span")
+        .evaluateAll((tokens) => [
+          ...new Set(tokens.map((token) => getComputedStyle(token).color)),
+        ]);
+      expect(colors.length).toBeGreaterThan(1);
+    }
+    await expect(page.getByRole("link", { name: /Read Markdown/i })).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
 });
 
 test("article sidebar tracks native navigation, reading position, pointer, and keyboard focus", async ({

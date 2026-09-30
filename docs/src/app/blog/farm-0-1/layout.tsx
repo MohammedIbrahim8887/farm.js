@@ -1,6 +1,5 @@
 import type { LayoutProps } from "@farm.js/core";
 import { ArrowLeft } from "lucide-react";
-import { ArticleTools } from "../../../components/blog/article-tools";
 import { BlogAuthor } from "../../../components/blog/author";
 import { BlogExplore } from "../../../components/blog/explore";
 import { ReleaseArtwork } from "../../../components/blog/release-artwork";
@@ -59,7 +58,6 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
               <span aria-hidden="true">00</span> In this article
             </p>
             <Contents />
-            <ArticleTools href={launchPost.href} />
           </div>
         </aside>
         <div className="blog-reading-column">
@@ -75,9 +73,6 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
               ▦
             </span>
             <p>Thanks for building with us.</p>
-          </div>
-          <div className="blog-mobile-tools">
-            <ArticleTools href={launchPost.href} />
           </div>
         </div>
       </div>

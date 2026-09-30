@@ -22,10 +22,7 @@ export default function BlogPage() {
           <h1>
             The Farm journal<span className="blog-title-period">.</span>
           </h1>
-          <p className="blog-index-description">
-            Releases, engineering notes, and ideas.
-            <br />A closer look at what we’re building, and why.
-          </p>
+          <p className="blog-index-description">Releases, engineering notes, and ideas.</p>
         </div>
       </header>
 
