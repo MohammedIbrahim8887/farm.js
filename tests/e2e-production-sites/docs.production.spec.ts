@@ -32,12 +32,16 @@ test("boots the emitted docs site and navigates into the guide", async ({ page }
   expect(browserErrors).toEqual([]);
 });
 
-test("blog connects the journal, article, contents, and Markdown mirror", async ({ page }) => {
+test("blog connects the index, article, contents, and Markdown mirror", async ({ page }) => {
   const browserErrors: string[] = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/blog");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("The Farm journal.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("The Farm.js blog.");
+  await expect(page.getByRole("heading", { level: 2, name: /Latest posts/ })).toBeVisible();
+  await expect(page.locator(".blog-featured h3 br")).toHaveCount(0);
+  await expect(page.locator(".blog-featured h3 > span")).toHaveCSS("display", "inline");
+  await expect(page.locator(".blog-featured h3")).toHaveCSS("text-wrap", "balance");
   await expect(page.getByRole("link", { name: /Follow the releases/i })).toHaveCount(0);
   await expect(page.locator(".blog-art-version")).toHaveText("v 0.1.0_");
   await expect(page.locator(".blog-featured-bottom .blog-author-name")).toHaveText(
@@ -128,6 +132,75 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await page.getByRole("link", { name: "All posts" }).click();
   await expect(page).toHaveURL(/\/blog$/);
   expect(browserErrors).toEqual([]);
+});
+
+test("shared release artwork types once, blinks, and respects reduced motion on both pages", async ({
+  page,
+}) => {
+  for (const path of ["/blog", "/blog/farm-0-1"]) {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto(path);
+    await page.evaluate(() => document.fonts.ready);
+    const version = page.locator(".blog-art-version");
+    const digits = version.locator(".blog-art-digit");
+    await expect(digits).toHaveCount(5);
+    // First verify real playback finishes; then seek the CSS timeline to test each
+    // character and the final caret without timing-dependent sleeps.
+    await expect(digits.last()).toHaveCSS("opacity", "1");
+    await expect(digits.first()).toHaveCSS("animation-iteration-count", "1");
+    await expect(version.locator(".blog-art-caret")).toHaveCSS("animation-iteration-count", "1");
+    await expect(version.locator(".blog-art-prefix")).toHaveText("v ");
+    await expect(version.locator(".blog-art-cursor")).toHaveCSS(
+      "animation-iteration-count",
+      "infinite",
+    );
+    const bounds = await version.boundingBox();
+    for (let count = 0; count <= 5; count++) {
+      const frame = await version.evaluate(
+        (element, time) => {
+          for (const animation of element.getAnimations({ subtree: true })) {
+            animation.pause();
+            animation.currentTime = time;
+          }
+          const caret = element.querySelector(".blog-art-caret")!;
+          return {
+            visible: [...element.querySelectorAll(".blog-art-digit")]
+              .filter((digit) => getComputedStyle(digit).opacity === "1")
+              .map((digit) => digit.textContent)
+              .join(""),
+            prefixOpacity: getComputedStyle(element.querySelector(".blog-art-prefix")!).opacity,
+            caretOpacity: getComputedStyle(caret).opacity,
+            caretLeft: caret.getBoundingClientRect().left,
+            numberRight: element.querySelector(".blog-art-number")!.getBoundingClientRect().right,
+          };
+        },
+        400 + count * 200,
+      );
+      expect(frame.visible).toBe("0.1.0".slice(0, count));
+      expect(frame.prefixOpacity).toBe("1");
+      expect(frame.caretOpacity).toBe(count === 5 ? "1" : "0");
+      expect(frame.caretLeft).toBeCloseTo(frame.numberRight, 1);
+      expect(await version.boundingBox()).toEqual(bounds);
+    }
+    const cursor = version.locator(".blog-art-cursor");
+    for (const [time, opacity] of [
+      [1400, "1"],
+      [2000, "0"],
+      [2600, "1"],
+    ] as const) {
+      await cursor.evaluate((element, elapsed) => {
+        element.getAnimations()[0].currentTime = elapsed;
+      }, time);
+      await expect(cursor).toHaveCSS("opacity", opacity);
+    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    expect(
+      await version.evaluate((element) => element.getAnimations({ subtree: true }).length),
+    ).toBe(0);
+    for (const digit of await digits.all()) await expect(digit).toHaveCSS("opacity", "1");
+    await expect(cursor).toHaveCSS("opacity", "1");
+    await expect(version).toHaveText("v 0.1.0_");
+  }
 });
 
 test("blog syntax highlighting is server-rendered and preserves every fenced code sample", async ({

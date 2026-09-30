@@ -20,7 +20,7 @@ export default function BlogPage() {
             <IndexedLabel index="05" label="From the framework" />
           </div>
           <h1>
-            The Farm journal<span className="blog-title-period">.</span>
+            The Farm.js blog<span className="blog-title-period">.</span>
           </h1>
           <p className="blog-index-description">Releases, engineering notes, and ideas.</p>
         </div>
@@ -29,7 +29,7 @@ export default function BlogPage() {
       <section className="blog-featured-section" aria-labelledby="latest-title">
         <div className="blog-section-rule farm-full-rule">
           <h2 id="latest-title">
-            <IndexedLabel index="05.1" icon={Newspaper} label="Latest dispatch" />
+            <IndexedLabel index="05.1" icon={Newspaper} label="Latest posts" />
           </h2>
           <span className="blog-eyebrow">RELEASE NOTES / 001</span>
         </div>
@@ -40,12 +40,7 @@ export default function BlogPage() {
               <time dateTime={launchPost.dateTime}>{launchPost.date}</time>
             </div>
             <h3 id="featured-title">
-              FarmJS v0.1.0
-              <span>
-                Stable. Integrated.
-                <br />
-                Agent-native.
-              </span>
+              FarmJS v0.1.0: <span>Stable, Integrated, and Agent-Native.</span>
             </h3>
             <p>{launchPost.description}</p>
           </div>

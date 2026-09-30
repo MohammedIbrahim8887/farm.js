@@ -1,5 +1,5 @@
 // A deterministic character field keeps the illustration crisp in SSR and costs
-// no canvas, animation loop, image request, or client-side dependency.
+// no canvas, JavaScript animation loop, image request, or client-side dependency.
 const field = Array.from({ length: 56 }, (_, row) =>
   Array.from({ length: 112 }, (_, column) => {
     const x = column / 14;
@@ -32,7 +32,21 @@ export function ReleaseArtwork({ fullBleed = false }: { fullBleed?: boolean }) {
       </div>
       <pre className="blog-ascii-field">{field}</pre>
       <div className="blog-art-version">
-        v 0.1.0<span className="blog-art-cursor">_</span>
+        <span className="blog-art-prefix">v </span>
+        <span className="blog-art-number">
+          {"0.1.0".split("").map((character, index) => (
+            <span
+              className="blog-art-digit"
+              key={index}
+              style={{ animationDelay: `${300 + index * 200}ms` }}
+            >
+              {character}
+            </span>
+          ))}
+          <span className="blog-art-caret">
+            <span className="blog-art-cursor">_</span>
+          </span>
+        </span>
       </div>
       <div className="blog-art-caption">
         <span>BUILT TO BUILD ON.</span>

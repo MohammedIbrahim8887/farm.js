@@ -1,11 +1,11 @@
 ---
-title: "Blog"
-description: "Releases, design notes, and engineering updates from the FarmJS team."
+title: "The Farm.js blog"
+description: "Releases, engineering notes, and ideas from the people building Farm.js."
 ---
 
-# Blog
+# The Farm.js blog
 
-Releases, design notes, and engineering updates from FarmJS.
+Releases, engineering notes, and ideas.
 
 ## [FarmJS v0.1.0: Stable, Integrated, and Agent-Native](/blog/farm-0-1)
 

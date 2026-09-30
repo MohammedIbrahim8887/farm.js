@@ -139,10 +139,9 @@
   font-size: clamp(26px, 2.5vw, 36px);
   line-height: 1.16;
   letter-spacing: -0.04em;
+  text-wrap: balance;
 }
 .blog-featured h3 > span {
-  display: block;
-  margin-top: 6px;
   color: #929292;
 }
 .blog-featured-copy > p {
@@ -210,7 +209,7 @@
 .blog-read-link svg {
   transition: transform 160ms ease-out;
 }
-/* Original ASCII field, rendered as text without a canvas or animation loop. */
+/* Original ASCII field, rendered as text without a canvas or JavaScript animation loop. */
 .blog-release-art {
   position: relative;
   display: grid;
@@ -243,11 +242,13 @@
 }
 .blog-art-version {
   position: relative;
+  display: inline-flex;
+  padding-right: 1ch;
   color: #ededed;
   font-family: var(--font-geist-pixel), monospace;
   font-size: clamp(36px, 14cqw, 88px);
   font-weight: 500;
-  letter-spacing: -0.065em;
+  letter-spacing: 0;
   white-space: nowrap;
   line-height: 1;
   text-shadow:
@@ -255,9 +256,50 @@
     0 0 40px #050505,
     0 0 60px #050505;
 }
+.blog-art-prefix {
+  white-space: pre;
+}
+.blog-art-number {
+  position: relative;
+  display: inline-flex;
+}
+.blog-art-caret {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  pointer-events: none;
+}
 .blog-art-cursor {
   color: #737373;
   letter-spacing: 0;
+}
+@keyframes blog-type-digit {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes blog-cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .blog-art-digit {
+    animation: blog-type-digit 200ms step-end both;
+  }
+  .blog-art-caret {
+    animation: blog-type-digit 200ms step-end 1100ms both;
+  }
+  .blog-art-cursor {
+    animation: blog-cursor-blink 1.2s step-end 1300ms infinite both;
+  }
 }
 .blog-art-label,
 .blog-art-caption {
