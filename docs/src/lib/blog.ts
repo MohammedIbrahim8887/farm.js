@@ -4,8 +4,11 @@ export const launchPost = {
   description: "Our first stable release. Built for apps and agents.",
   author: "KinfeMichael Tariku",
   authorAvatar: "https://avatars.githubusercontent.com/u/65047246?v=4&size=96",
-  date: "October 2026",
-  dateTime: "2026-10",
+  authorUrl: "https://x.com/KinfishT",
+  organization: "Farming Labs",
+  organizationUrl: "https://github.com/farming-labs",
+  date: "Sep 2026",
+  dateTime: "2026-09",
   category: "Release",
 } as const;
 

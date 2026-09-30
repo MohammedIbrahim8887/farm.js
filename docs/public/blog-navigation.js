@@ -14,6 +14,7 @@
   const updateNavigation = navigation.map((nav) => {
     const links = [...nav.querySelectorAll("a")];
     const highlight = nav.querySelector(".blog-contents-highlight");
+    const indicator = nav.querySelector(".blog-contents-indicator");
     let pointerLink = null;
     let focusedLink = null;
 
@@ -24,6 +25,11 @@
         else link.removeAttribute("aria-current");
       }
       const target = focusedLink ?? pointerLink ?? current;
+      if (current && indicator && nav.offsetHeight) {
+        const currentBounds = current.getBoundingClientRect();
+        const offset = currentBounds.top - nav.getBoundingClientRect().top;
+        indicator.style.transform = `translateY(${offset + (currentBounds.height - 18) / 2}px)`;
+      }
       if (!target || !highlight || !nav.offsetHeight) return;
       highlight.style.transform = `translateY(${target.offsetTop}px)`;
       highlight.style.height = `${target.offsetHeight}px`;
@@ -60,6 +66,9 @@
     }
     nav.addEventListener("pointerleave", clearPointer);
     nav.addEventListener("pointercancel", clearPointer);
+    nav.addEventListener("pointerdown", () => {
+      nav.dataset.input = "pointer";
+    });
     new ResizeObserver(update).observe(nav);
     return update;
   });
@@ -86,5 +95,19 @@
   window.addEventListener("resize", scheduleUpdate);
   window.addEventListener("hashchange", scheduleUpdate);
   window.addEventListener("pageshow", scheduleUpdate);
+  window.addEventListener(
+    "wheel",
+    () => {
+      for (const nav of navigation) nav.dataset.input = "scroll";
+    },
+    { passive: true },
+  );
+  window.addEventListener(
+    "touchstart",
+    () => {
+      for (const nav of navigation) nav.dataset.input = "scroll";
+    },
+    { passive: true },
+  );
   updateSection();
 })();

@@ -20,6 +20,7 @@ export default function BlogLayout({ children }: LayoutProps) {
         </div>
         <div aria-hidden className="farm-page-rail" />
       </div>
+      <script src="/blog-artwork.js" defer />
     </div>
   );
 }

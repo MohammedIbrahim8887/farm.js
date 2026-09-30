@@ -10,7 +10,20 @@ const field = Array.from({ length: 56 }, (_, row) =>
     const density = Math.max(0, Math.min(1, (contour + 1) * 0.4 + crosswind));
     return " .:-=+*#"[Math.min(7, Math.floor(density * 8))];
   }).join(""),
-).join("\n");
+);
+
+function RollingDigit({ value, order }: { value: number; order: number }) {
+  return (
+    <span className="blog-art-digit" style={{ animationDelay: `${order * 100}ms` }}>
+      <span className="blog-art-value">{value}</span>
+      <span className="blog-art-reel">
+        {Array.from({ length: 10 }, (_, index) => (
+          <span key={index}>{(value + index) % 10}</span>
+        ))}
+      </span>
+    </span>
+  );
+}
 
 export function ReleaseArtwork({ fullBleed = false }: { fullBleed?: boolean }) {
   return (
@@ -30,19 +43,27 @@ export function ReleaseArtwork({ fullBleed = false }: { fullBleed?: boolean }) {
         <span>FARM.JS</span>
         <span>RELEASE / 001</span>
       </div>
-      <pre className="blog-ascii-field">{field}</pre>
-      <div className="blog-art-version">
-        <span className="blog-art-prefix">v </span>
-        <span className="blog-art-number">
-          {"0.1.0".split("").map((character, index) => (
+      <pre className="blog-ascii-field">
+        <span className="blog-ascii-rows">
+          {field.map((row, index) => (
             <span
-              className="blog-art-digit"
+              className="blog-ascii-row"
               key={index}
-              style={{ animationDelay: `${300 + index * 200}ms` }}
+              style={{ animationDelay: `${index * -110}ms` }}
             >
-              {character}
+              {row}
             </span>
           ))}
+        </span>
+      </pre>
+      <div className="blog-art-version" data-version="v 0.1.0">
+        <span className="blog-art-prefix">v </span>
+        <span className="blog-art-number">
+          <RollingDigit value={0} order={0} />
+          <span className="blog-art-dot">.</span>
+          <RollingDigit value={1} order={1} />
+          <span className="blog-art-dot">.</span>
+          <RollingDigit value={0} order={2} />
           <span className="blog-art-caret">
             <span className="blog-art-cursor">_</span>
           </span>

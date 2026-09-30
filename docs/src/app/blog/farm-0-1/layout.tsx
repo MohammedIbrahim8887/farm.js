@@ -9,6 +9,7 @@ function Contents() {
   return (
     <nav aria-label="On this page" className="blog-contents-links">
       <span className="blog-contents-highlight" aria-hidden="true" />
+      <span className="blog-contents-indicator" aria-hidden="true" />
       {launchSections.map(([id, label], index) => (
         <a key={id} href={`#${id}`}>
           <span className="blog-contents-index" aria-hidden="true">
@@ -28,7 +29,6 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
         <a href="/blog" aria-label="All posts" title="All posts">
           <ArrowLeft aria-hidden size={16} />
         </a>
-        <span className="blog-eyebrow">RELEASE NOTES / 001</span>
       </div>
       <header className="blog-post-header">
         <div className="blog-post-heading">
@@ -73,6 +73,7 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
       </div>
       <BlogExplore />
       <script src="/blog-navigation.js" defer />
+      <script src="/blog-code.js" defer />
     </>
   );
 }

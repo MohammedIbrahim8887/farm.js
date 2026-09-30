@@ -40,10 +40,28 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("The Farm.js blog.");
   await expect(page.getByRole("heading", { level: 2, name: /Latest posts/ })).toBeVisible();
   await expect(page.locator(".blog-featured h3 br")).toHaveCount(0);
-  await expect(page.locator(".blog-featured h3 > span")).toHaveCSS("display", "inline");
+  await expect(page.locator(".blog-featured h3 a > span")).toHaveCSS("display", "inline");
   await expect(page.locator(".blog-featured h3")).toHaveCSS("text-wrap", "balance");
   await expect(page.getByRole("link", { name: /Follow the releases/i })).toHaveCount(0);
-  await expect(page.locator(".blog-art-version")).toHaveText("v 0.1.0_");
+  await expect(page.locator(".blog-art-version")).toHaveAttribute("data-version", "v 0.1.0");
+  await expect(page.locator(".blog-post-meta time")).toHaveText("Sep 2026");
+  await expect(page.locator(".blog-post-meta time")).toHaveCSS("font-family", /Geist Sans/);
+  await expect(page.locator(".blog-author-profile")).toHaveAttribute(
+    "href",
+    "https://x.com/KinfishT",
+  );
+  await expect(page.getByRole("link", { name: "Farming Labs", exact: true })).toHaveAttribute(
+    "href",
+    "https://github.com/farming-labs",
+  );
+  await expect(page.getByText("RELEASE NOTES / 001", { exact: true })).toHaveCount(0);
+  for (const selector of [".blog-section-rule", ".blog-explore"]) {
+    await expect(page.locator(selector)).toHaveCSS("border-bottom-width", "0px");
+    expect(
+      await page.locator(selector).evaluate((el) => getComputedStyle(el, "::after").height),
+    ).toBe("1px");
+  }
+  await expect(page.locator(".blog-featured a a")).toHaveCount(0);
   await expect(page.locator(".blog-featured-bottom .blog-author-name")).toHaveText(
     "KinfeMichael Tariku",
   );
@@ -76,7 +94,9 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await expect(back).toHaveAttribute("href", "/blog");
   await expect(back).toHaveCSS("width", "44px");
   await expect(back).toHaveCSS("height", "44px");
-  await expect(page.locator(".blog-art-version")).toHaveText("v 0.1.0_");
+  await expect(page.locator(".blog-art-version")).toHaveAttribute("data-version", "v 0.1.0");
+  await expect(page.getByText("RELEASE NOTES / 001", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".blog-explore")).toHaveCSS("border-bottom-width", "0px");
   await expect(page.locator(".blog-post-heading > p")).toHaveText(
     "Our first stable release. Built for apps and agents.",
   );
@@ -134,73 +154,117 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   expect(browserErrors).toEqual([]);
 });
 
-test("shared release artwork types once, blinks, and respects reduced motion on both pages", async ({
+test("shared artwork rolls down, waves, pauses offscreen, and respects reduced motion", async ({
   page,
 }) => {
   for (const path of ["/blog", "/blog/farm-0-1"]) {
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto(path);
     await page.evaluate(() => document.fonts.ready);
-    const version = page.locator(".blog-art-version");
-    const digits = version.locator(".blog-art-digit");
-    await expect(digits).toHaveCount(5);
-    // First verify real playback finishes; then seek the CSS timeline to test each
-    // character and the final caret without timing-dependent sleeps.
-    await expect(digits.last()).toHaveCSS("opacity", "1");
-    await expect(digits.first()).toHaveCSS("animation-iteration-count", "1");
-    await expect(version.locator(".blog-art-caret")).toHaveCSS("animation-iteration-count", "1");
-    await expect(version.locator(".blog-art-prefix")).toHaveText("v ");
-    await expect(version.locator(".blog-art-cursor")).toHaveCSS(
-      "animation-iteration-count",
-      "infinite",
-    );
+    const art = page.locator(".blog-release-art");
+    const version = art.locator(".blog-art-version");
+    await expect(art).toHaveAttribute("data-motion", "running");
+    await expect(version.locator(".blog-art-value")).toHaveText(["0", "1", "0"]);
+    await expect(version.locator(".blog-art-dot")).toHaveCount(2);
+    const reels = art.locator(".blog-art-reel");
+    await expect(reels).toHaveCount(3);
+    await expect(reels.first()).toHaveCSS("animation-iteration-count", "1");
+    await expect
+      .poll(() => reels.last().evaluate((el) => el.getAnimations()[0].playState))
+      .toBe("finished");
     const bounds = await version.boundingBox();
-    for (let count = 0; count <= 5; count++) {
-      const frame = await version.evaluate(
-        (element, time) => {
-          for (const animation of element.getAnimations({ subtree: true })) {
+    for (const time of [0, 450, 1800]) {
+      const offsets = await reels.evaluateAll(
+        (elements, elapsed) =>
+          elements.map((el) => {
+            const animation = el.getAnimations()[0];
             animation.pause();
-            animation.currentTime = time;
-          }
-          const caret = element.querySelector(".blog-art-caret")!;
-          return {
-            visible: [...element.querySelectorAll(".blog-art-digit")]
-              .filter((digit) => getComputedStyle(digit).opacity === "1")
-              .map((digit) => digit.textContent)
-              .join(""),
-            prefixOpacity: getComputedStyle(element.querySelector(".blog-art-prefix")!).opacity,
-            caretOpacity: getComputedStyle(caret).opacity,
-            caretLeft: caret.getBoundingClientRect().left,
-            numberRight: element.querySelector(".blog-art-number")!.getBoundingClientRect().right,
-          };
-        },
-        400 + count * 200,
+            animation.currentTime = elapsed;
+            return new DOMMatrix(getComputedStyle(el).transform).m42;
+          }),
+        time,
       );
-      expect(frame.visible).toBe("0.1.0".slice(0, count));
-      expect(frame.prefixOpacity).toBe("1");
-      expect(frame.caretOpacity).toBe(count === 5 ? "1" : "0");
-      expect(frame.caretLeft).toBeCloseTo(frame.numberRight, 1);
+      if (time < 1800) expect(offsets.every((offset) => offset < 0)).toBe(true);
+      else expect(offsets.every((offset) => offset === 0)).toBe(true);
       expect(await version.boundingBox()).toEqual(bounds);
     }
+    const row = art.locator(".blog-ascii-row").first();
+    await expect(row).toHaveCSS("animation-iteration-count", "infinite");
+    const wave = [];
+    for (const time of [0, 3000]) {
+      wave.push(
+        await row.evaluate((el, elapsed) => {
+          const animation = el.getAnimations()[0];
+          animation.pause();
+          animation.currentTime = elapsed;
+          return new DOMMatrix(getComputedStyle(el).transform).m41;
+        }, time),
+      );
+    }
+    expect(wave[0]).toBeLessThan(0);
+    expect(wave[1]).toBeGreaterThan(0);
     const cursor = version.locator(".blog-art-cursor");
     for (const [time, opacity] of [
-      [1400, "1"],
-      [2000, "0"],
-      [2600, "1"],
+      [100, "1"],
+      [700, "0"],
+      [1300, "1"],
     ] as const) {
-      await cursor.evaluate((element, elapsed) => {
-        element.getAnimations()[0].currentTime = elapsed;
+      await cursor.evaluate((el, elapsed) => {
+        const animation = el.getAnimations()[0];
+        animation.pause();
+        animation.currentTime = elapsed;
       }, time);
       await expect(cursor).toHaveCSS("opacity", opacity);
     }
+    await page.setViewportSize({ width: 1440, height: 400 });
+    await page.locator("footer").scrollIntoViewIfNeeded();
+    await expect(art).not.toBeInViewport();
+    await expect(art).toHaveAttribute("data-motion", "paused");
+    await expect(row).toHaveCSS("animation-play-state", "paused");
     await page.emulateMedia({ reducedMotion: "reduce" });
-    expect(
-      await version.evaluate((element) => element.getAnimations({ subtree: true }).length),
-    ).toBe(0);
-    for (const digit of await digits.all()) await expect(digit).toHaveCSS("opacity", "1");
-    await expect(cursor).toHaveCSS("opacity", "1");
-    await expect(version).toHaveText("v 0.1.0_");
+    expect(await art.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
+    await expect(reels.first()).toHaveCSS("display", "none");
+    await expect(version.locator(".blog-art-value").first()).toHaveCSS("visibility", "visible");
   }
+});
+
+test("every code block copies exact source and exposes recoverable clipboard failure", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/blog/farm-0-1");
+  const blocks = page.locator(".blog-code-block");
+  await expect(blocks).toHaveCount(6);
+  for (const block of await blocks.all()) {
+    const text = await block.locator("pre > code").textContent();
+    const button = block.getByRole("button");
+    await expect(button).toBeVisible();
+    const bounds = await button.boundingBox();
+    await button.click();
+    await expect(button).toHaveText("Copied");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text);
+    expect((await button.boundingBox())!.width).toBe(bounds!.width);
+    await expect(block.getByRole("status")).toHaveText("Code copied to clipboard.");
+  }
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      configurable: true,
+      value: () => Promise.reject(new Error("denied")),
+    });
+  });
+  const first = blocks.first();
+  await first.getByRole("button").click();
+  await expect(first.getByRole("button")).toHaveText("Retry");
+  await expect(first.getByRole("status")).toContainText("Could not copy");
+  await expect(first.getByRole("button")).toHaveText("Copy");
+  await page.evaluate(() => {
+    delete (navigator.clipboard as unknown as { writeText?: unknown }).writeText;
+  });
+  await first.getByRole("button").focus();
+  await page.keyboard.press("Enter");
+  await expect(first.getByRole("button")).toHaveText("Copied");
 });
 
 test("blog syntax highlighting is server-rendered and preserves every fenced code sample", async ({
@@ -243,6 +307,7 @@ test("article sidebar tracks native navigation, reading position, pointer, and k
   const first = nav.getByRole("link", { name: "What stable means", exact: true });
   const integrations = nav.getByRole("link", { name: "Integrations", exact: true });
   const highlight = nav.locator(".blog-contents-highlight");
+  const indicator = nav.locator(".blog-contents-indicator");
   await expect(first).toHaveAttribute("aria-current", "location");
   await expect(nav).toHaveAttribute("data-highlight-ready", "true");
   await integrations.click();
@@ -253,14 +318,26 @@ test("article sidebar tracks native navigation, reading position, pointer, and k
     "aria-current",
     "location",
   );
+  const activeBounds = (await nav
+    .getByRole("link", { name: "Built with Farm: Viby" })
+    .boundingBox())!;
+  await expect
+    .poll(async () => (await indicator.boundingBox())!.y)
+    .toBeCloseTo(activeBounds.y + (activeBounds.height - 18) / 2, 1);
+  const markerPosition = await indicator.boundingBox();
   await first.hover();
   await expect
     .poll(async () => (await highlight.boundingBox())!.y)
     .toBe((await first.boundingBox())!.y);
+  expect(await indicator.boundingBox()).toEqual(markerPosition);
   await expect(nav.getByRole("link", { name: "Built with Farm: Viby" })).toHaveAttribute(
     "aria-current",
     "location",
   );
+  // Revisit the named anchor before testing history, so browser-specific
+  // manual-scroll restoration policy cannot change the expected destination.
+  await integrations.click();
+  await expect(integrations).toHaveAttribute("aria-current", "location");
   await first.focus();
   await page.keyboard.press("Tab");
   await expect(nav.getByRole("link", { name: "The app foundation" })).toBeFocused();
@@ -268,6 +345,10 @@ test("article sidebar tracks native navigation, reading position, pointer, and k
   await expect(highlight).toHaveCSS("transition-duration", "0s");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/#the-app-foundation$/);
+  await expect(nav.getByRole("link", { name: "The app foundation" })).toHaveAttribute(
+    "aria-current",
+    "location",
+  );
   await page.goBack();
   await expect(page).toHaveURL(/#an-integrations-ecosystem$/);
   await expect(integrations).toHaveAttribute("aria-current", "location");
@@ -277,6 +358,11 @@ test("article sidebar tracks native navigation, reading position, pointer, and k
     "aria-current",
     "location",
   );
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.mouse.move(1000, 300);
+  await page.mouse.wheel(0, 120);
+  await expect(nav).toHaveAttribute("data-input", "scroll");
+  await expect(indicator).toHaveCSS("transition-duration", "0.22s");
 });
 
 for (const width of [320, 390, 768]) {
@@ -314,6 +400,7 @@ for (const width of [320, 390, 768]) {
       );
       await page.locator(".blog-featured").click();
       await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
+      await expect(page.locator(".blog-code-copy:visible")).toHaveCount(0);
       await page.locator(".blog-mobile-contents summary").click();
       await page
         .locator(".blog-mobile-contents")

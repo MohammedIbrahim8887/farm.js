@@ -31,27 +31,28 @@ export default function BlogPage() {
           <h2 id="latest-title">
             <IndexedLabel index="05.1" icon={Newspaper} label="Latest posts" />
           </h2>
-          <span className="blog-eyebrow">RELEASE NOTES / 001</span>
         </div>
-        <a className="blog-featured" href={launchPost.href} aria-labelledby="featured-title">
+        <article className="blog-featured" aria-labelledby="featured-title">
           <div className="blog-featured-copy">
             <div className="blog-post-meta">
               <span className="blog-category">{launchPost.category}</span>
               <time dateTime={launchPost.dateTime}>{launchPost.date}</time>
             </div>
             <h3 id="featured-title">
-              FarmJS v0.1.0: <span>Stable, Integrated, and Agent-Native.</span>
+              <a href={launchPost.href}>
+                FarmJS v0.1.0: <span>Stable, Integrated, and Agent-Native.</span>
+              </a>
             </h3>
             <p>{launchPost.description}</p>
           </div>
           <ReleaseArtwork />
           <div className="blog-featured-bottom">
             <BlogAuthor />
-            <span className="blog-read-link">
+            <a className="blog-read-link" href={launchPost.href}>
               Read article <ArrowRight aria-hidden size={16} strokeWidth={1.5} />
-            </span>
+            </a>
           </div>
-        </a>
+        </article>
       </section>
 
       <BlogExplore />

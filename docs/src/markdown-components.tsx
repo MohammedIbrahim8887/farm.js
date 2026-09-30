@@ -1,4 +1,5 @@
-import { Fragment, type ComponentPropsWithoutRef } from "react";
+import { Fragment, isValidElement, type ComponentPropsWithoutRef } from "react";
+import { Check, Copy } from "lucide-react";
 import { createHighlighterCoreSync } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import bash from "shiki/langs/bash.mjs";
@@ -41,4 +42,36 @@ function Code({ children, className, ...props }: ComponentPropsWithoutRef<"code"
   );
 }
 
-export const components = { code: Code };
+function Pre({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
+  const language = isValidElement<{ className?: string }>(children)
+    ? children.props.className?.match(/language-([^\s]+)/)?.[1]
+    : undefined;
+  const label =
+    language === "bash" || language === "sh"
+      ? "Terminal"
+      : language === "ts" || language === "typescript"
+        ? "TypeScript"
+        : "Code";
+  return (
+    <div className="blog-code-block">
+      <div className="blog-code-toolbar">
+        <span>{label}</span>
+        <button
+          type="button"
+          className="blog-code-copy"
+          aria-label={`Copy ${label} code`}
+          title={`Copy ${label} code`}
+          hidden
+        >
+          <Copy className="blog-copy-icon" size={14} strokeWidth={1.5} aria-hidden />
+          <Check className="blog-copy-check" size={14} strokeWidth={1.5} aria-hidden />
+          <span data-copy-label>Copy</span>
+        </button>
+        <span className="sr-only" role="status" data-copy-status />
+      </div>
+      <pre {...props}>{children}</pre>
+    </div>
+  );
+}
+
+export const components = { code: Code, pre: Pre };

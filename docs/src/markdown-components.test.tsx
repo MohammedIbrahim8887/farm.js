@@ -5,6 +5,21 @@ import { describe, expect, it } from "vitest";
 import { components } from "./markdown-components";
 
 describe("Markdown code", () => {
+  it("gives fenced code a labelled toolbar and an initially hidden copy action", () => {
+    const html = renderToStaticMarkup(
+      createElement(components.pre, {
+        children: createElement(components.code, {
+          className: "language-bash",
+          children: "pnpm dev\n",
+        }),
+      }),
+    );
+    expect(html).toContain("Terminal</span>");
+    expect(html).toContain('aria-label="Copy Terminal code"');
+    expect(html).toContain('hidden=""');
+    expect(html).toContain('role="status"');
+    expect(html).toContain('<pre><code class="language-bash"');
+  });
   it.each([
     ["bash", 'curl -H "Accept: text/markdown" https://farmjs.dev/blog/farm-0-1\n'],
     ["ts", 'const message: string = "<script>alert(1)</script>";\n'],

@@ -5,7 +5,7 @@ description: "Our first stable release. Built for apps and agents."
 
 # FarmJS v0.1.0: Stable, Integrated, and Agent-Native
 
-KinfeMichael Tariku · October 2026
+KinfeMichael Tariku · Sep 2026
 
 FarmJS 0.1 is out. It is the first release with a compatibility promise, and the first one I am comfortable calling stable.
 
