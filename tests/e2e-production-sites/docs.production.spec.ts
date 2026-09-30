@@ -66,6 +66,7 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
     "KinfeMichael Tariku",
   );
   await expect(page.locator(".blog-featured-bottom img")).toHaveAttribute("width", "36");
+  await expect(page.locator(".blog-author small")).toHaveCSS("margin-top", "0px");
   await expect(page.locator(".blog-read-link")).toHaveText("Read article");
   await expect(page.locator(".blog-explore a")).toHaveCount(2);
   await expect(page.locator(".blog-explore a").first()).toHaveAttribute(
@@ -175,6 +176,7 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
   );
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 });
+    await expect(page.locator(".blog-author small")).toHaveCSS("margin-top", "0px");
     await expect(prose.locator("p").filter({ hasText: /^Farm\.js 0\.1 is out/ })).toHaveCSS(
       "font-weight",
       "300",
