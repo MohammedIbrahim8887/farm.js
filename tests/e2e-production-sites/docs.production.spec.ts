@@ -38,6 +38,21 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/blog");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("The Farm journal.");
+  await expect(page.locator(".blog-art-version")).toHaveText("v0.1.0_");
+  await expect(page.locator(".blog-featured-bottom .blog-author-name")).toHaveText(
+    "KinfeMichael Tariku",
+  );
+  await expect(page.locator(".blog-featured-bottom img")).toHaveAttribute("width", "36");
+  await expect(page.locator(".blog-read-link")).toHaveText("Read article");
+  await expect(page.locator(".blog-explore a")).toHaveCount(2);
+  await expect(page.locator(".blog-explore a").first()).toHaveAttribute(
+    "href",
+    "/docs/getting-started",
+  );
+  await expect(page.locator(".blog-explore a").last()).toHaveAttribute(
+    "href",
+    "https://github.com/farming-labs/farm.js",
+  );
   await expect(
     page
       .getByRole("navigation", { name: "Primary navigation" })
@@ -48,6 +63,8 @@ test("blog connects the journal, article, contents, and Markdown mirror", async 
   await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("FarmJS 0.1");
+  await expect(page.locator(".blog-art-version")).toHaveText("v0.1.0_");
+  await expect(page.getByRole("heading", { name: /Keep exploring/ })).toHaveCount(1);
   const contents = page.locator(".blog-contents");
   await expect(contents.getByRole("navigation").getByRole("link")).toHaveCount(11);
   for (const href of await contents
@@ -92,6 +109,21 @@ for (const width of [320, 390, 768]) {
     try {
       await page.goto("/blog");
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      expect(
+        await page.locator(".blog-art-version").evaluate((version) => {
+          const text = version.getBoundingClientRect();
+          const artwork = version.closest(".blog-release-art")!.getBoundingClientRect();
+          return text.left >= artwork.left && text.right <= artwork.right;
+        }),
+      ).toBe(true);
+      const byline = await page.locator(".blog-featured-bottom .blog-author").boundingBox();
+      const action = await page.locator(".blog-read-link").boundingBox();
+      expect(byline).not.toBeNull();
+      expect(action).not.toBeNull();
+      expect(
+        action!.x >= byline!.x + byline!.width || action!.y >= byline!.y + byline!.height,
+      ).toBe(true);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );

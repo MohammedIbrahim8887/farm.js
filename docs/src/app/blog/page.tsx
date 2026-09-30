@@ -1,6 +1,9 @@
 import type { Metadata } from "@farm.js/core";
-import { ArrowRight, ArrowUpRight, BookOpen, GitPullRequest } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Newspaper } from "lucide-react";
+import { BlogAuthor } from "../../components/blog/author";
+import { BlogExplore } from "../../components/blog/explore";
 import { ReleaseArtwork } from "../../components/blog/release-artwork";
+import { IndexedLabel } from "../../components/site-chrome";
 import { launchPost } from "../../lib/blog";
 
 export const metadata = {
@@ -13,9 +16,9 @@ export default function BlogPage() {
     <>
       <header className="blog-index-header">
         <div>
-          <p className="blog-eyebrow">
-            <span>05</span> / FROM THE FRAMEWORK
-          </p>
+          <div className="blog-eyebrow">
+            <IndexedLabel index="05" label="From the framework" />
+          </div>
           <h1>
             The Farm journal<span className="blog-title-period">.</span>
           </h1>
@@ -30,19 +33,20 @@ export default function BlogPage() {
       </header>
 
       <section className="blog-featured-section" aria-labelledby="latest-title">
-        <div className="blog-section-rule">
-          <h2 id="latest-title">Latest dispatch</h2>
-          <span className="blog-eyebrow">001 / RELEASE NOTES</span>
+        <div className="blog-section-rule farm-full-rule">
+          <h2 id="latest-title">
+            <IndexedLabel index="05.1" icon={Newspaper} label="Latest dispatch" />
+          </h2>
+          <span className="blog-eyebrow">RELEASE NOTES / 001</span>
         </div>
         <a className="blog-featured" href={launchPost.href} aria-labelledby="featured-title">
-          <ReleaseArtwork />
           <div className="blog-featured-copy">
             <div className="blog-post-meta">
               <span className="blog-category">{launchPost.category}</span>
               <time dateTime={launchPost.dateTime}>{launchPost.date}</time>
             </div>
             <h3 id="featured-title">
-              FarmJS 0.1
+              FarmJS v0.1.0
               <span>
                 Stable. Integrated.
                 <br />
@@ -50,45 +54,18 @@ export default function BlogPage() {
               </span>
             </h3>
             <p>{launchPost.description}</p>
-            <div className="blog-featured-bottom">
-              <span className="blog-author">
-                <span className="blog-author-avatar" aria-hidden>
-                  KT
-                </span>
-                <span>
-                  {launchPost.author}
-                  <small>Creator of Farm.js</small>
-                </span>
-              </span>
-              <span className="blog-read-link">
-                Read the story <ArrowRight aria-hidden size={16} />
-              </span>
-            </div>
+          </div>
+          <ReleaseArtwork />
+          <div className="blog-featured-bottom">
+            <BlogAuthor />
+            <span className="blog-read-link">
+              Read article <ArrowRight aria-hidden size={16} strokeWidth={1.5} />
+            </span>
           </div>
         </a>
       </section>
 
-      <section className="blog-explore" aria-labelledby="explore-title">
-        <div className="blog-explore-intro">
-          <p className="blog-eyebrow">KEEP EXPLORING</p>
-          <h2 id="explore-title">Built in the open.</h2>
-          <p>Follow the code. Build something with it.</p>
-        </div>
-        <a href="/docs/getting-started">
-          <BookOpen aria-hidden size={19} />
-          <span>
-            Start building<small>Your first app, from the ground up.</small>
-          </span>
-          <ArrowUpRight aria-hidden size={17} />
-        </a>
-        <a href="https://github.com/farming-labs/farm.js">
-          <GitPullRequest aria-hidden size={19} />
-          <span>
-            Follow development<small>The decisions, changes, and work ahead.</small>
-          </span>
-          <ArrowUpRight aria-hidden size={17} />
-        </a>
-      </section>
+      <BlogExplore />
     </>
   );
 }

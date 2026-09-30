@@ -4,6 +4,7 @@ export const launchPost = {
   description:
     "Our first stable release. One foundation for your app, the services behind it, and the agents working alongside you.",
   author: "KinfeMichael Tariku",
+  authorAvatar: "https://avatars.githubusercontent.com/u/65047246?v=4&size=96",
   date: "October 2026",
   dateTime: "2026-10",
   category: "Release",

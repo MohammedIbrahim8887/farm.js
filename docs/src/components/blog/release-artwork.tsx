@@ -29,7 +29,7 @@ export function ReleaseArtwork({ compact = false }: { compact?: boolean }) {
       </div>
       <pre className="blog-ascii-field">{field}</pre>
       <div className="blog-art-version">
-        0.1<span className="blog-art-cursor">_</span>
+        v0.1.0<span className="blog-art-cursor">_</span>
       </div>
       <div className="blog-art-caption">
         <span>BUILT TO BUILD ON.</span>

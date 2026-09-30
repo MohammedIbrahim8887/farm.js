@@ -1,6 +1,8 @@
 import type { LayoutProps } from "@farm.js/core";
-import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { ArticleTools } from "../../../components/blog/article-tools";
+import { BlogAuthor } from "../../../components/blog/author";
+import { BlogExplore } from "../../../components/blog/explore";
 import { ReleaseArtwork } from "../../../components/blog/release-artwork";
 import { launchPost, launchSections } from "../../../lib/blog";
 
@@ -42,15 +44,7 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
           </h1>
           <p>{launchPost.description}</p>
           <div className="blog-post-byline">
-            <span className="blog-author">
-              <span className="blog-author-avatar" aria-hidden>
-                KT
-              </span>
-              <span>
-                {launchPost.author}
-                <small>Creator of Farm.js</small>
-              </span>
-            </span>
+            <BlogAuthor />
           </div>
         </div>
         <ReleaseArtwork compact />
@@ -76,24 +70,13 @@ export default function LaunchPostLayout({ children }: LayoutProps) {
               ▦
             </span>
             <p>Thanks for building with us.</p>
-            <a href="https://github.com/farming-labs/farm.js">
-              Join us on GitHub <ArrowUpRight aria-hidden size={15} />
-            </a>
           </div>
           <div className="blog-mobile-tools">
             <ArticleTools href={launchPost.href} />
           </div>
         </div>
       </div>
-      <div className="blog-next-step">
-        <div>
-          <span className="blog-eyebrow">YOUR NEXT COMMIT</span>
-          <h2>Make something with Farm.</h2>
-        </div>
-        <a href="/docs/getting-started">
-          Start building <ArrowRight aria-hidden size={16} />
-        </a>
-      </div>
+      <BlogExplore />
     </>
   );
 }
