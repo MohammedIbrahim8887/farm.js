@@ -654,7 +654,7 @@
 .blog-prose {
   color: var(--blog-copy);
   font-size: 16px;
-  font-weight: 350;
+  font-weight: 300;
   line-height: 1.85;
   overflow-wrap: break-word;
 }
@@ -682,7 +682,7 @@
   color: #ededed;
   margin: 52px 0 18px;
   font-size: 27px;
-  font-weight: 450;
+  font-weight: 400;
   line-height: 1.25;
   letter-spacing: -0.035em;
 }
@@ -690,7 +690,7 @@
   color: #ededed;
   margin: 32px 0 14px;
   font-size: 20px;
-  font-weight: 450;
+  font-weight: 400;
   line-height: 1.35;
   letter-spacing: -0.02em;
 }
@@ -715,7 +715,7 @@
 }
 .blog-prose strong {
   color: #e0e0e0;
-  font-weight: 500;
+  font-weight: 450;
 }
 .blog-prose a {
   color: #e0e0e0;

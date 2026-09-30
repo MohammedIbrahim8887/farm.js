@@ -177,15 +177,15 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
     await page.setViewportSize({ width, height: 1000 });
     await expect(prose.locator("p").filter({ hasText: /^Farm\.js 0\.1 is out/ })).toHaveCSS(
       "font-weight",
-      "350",
+      "300",
     );
     await expect(prose.locator("p").filter({ hasText: /^Patch releases/ })).toHaveCSS(
       "font-weight",
-      "350",
+      "300",
     );
-    await expect(prose.locator("li").first()).toHaveCSS("font-weight", "350");
-    await expect(prose.locator("h2").first()).toHaveCSS("font-weight", "450");
-    await expect(prose.locator("strong").first()).toHaveCSS("font-weight", "500");
+    await expect(prose.locator("li").first()).toHaveCSS("font-weight", "300");
+    await expect(prose.locator("h2").first()).toHaveCSS("font-weight", "400");
+    await expect(prose.locator("strong").first()).toHaveCSS("font-weight", "450");
     await expect(prose.locator("pre").first()).toHaveCSS("font-weight", "400");
     await expect(prose).toHaveCSS("font-size", width === 1440 ? "16px" : "15px");
   }
