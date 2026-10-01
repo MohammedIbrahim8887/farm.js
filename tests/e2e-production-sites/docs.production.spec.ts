@@ -68,6 +68,7 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await expect(page.locator(".blog-featured-bottom img")).toHaveAttribute("width", "36");
   await expect(page.locator(".blog-author small")).toHaveCSS("margin-top", "0px");
   await expect(page.locator(".blog-read-link")).toHaveText("Read article");
+  await expect(page.locator(".blog-read-link")).toHaveAttribute("href", "/blog/0.1.0");
   await expect(page.locator(".blog-explore a")).toHaveCount(2);
   await expect(page.locator(".blog-explore a").first()).toHaveAttribute(
     "href",
@@ -84,7 +85,7 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   ).toHaveAttribute("aria-current", "page");
 
   await page.locator(".blog-featured").click();
-  await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
+  await expect(page).toHaveURL(/\/blog\/0\.1\.0$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Farm.js v0.1.0");
   await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "36px");
@@ -95,6 +96,7 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await expect(back).toHaveAttribute("href", "/blog");
   await expect(back).toHaveCSS("width", "44px");
   await expect(back).toHaveCSS("height", "44px");
+  await expect(page.locator(".blog-breadcrumb")).toHaveCSS("height", "52px");
   await expect(page.locator(".blog-art-version")).toHaveAttribute("data-version", "v 0.1.0");
   await expect(page.getByText("RELEASE NOTES / 001", { exact: true })).toHaveCount(0);
   await expect(page.locator(".blog-explore")).toHaveCSS("border-bottom-width", "0px");
@@ -116,13 +118,18 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   );
   const contents = page.locator(".blog-contents");
   await expect(contents).toHaveCSS("width", "280px");
-  await expect(contents.getByRole("navigation").getByRole("link")).toHaveCount(12);
+  await expect(contents.getByRole("navigation").getByRole("link")).toHaveCount(17);
   for (const href of await contents
     .getByRole("navigation")
     .getByRole("link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href")!))) {
     await expect(page.locator(href)).toHaveCount(1);
   }
+  await contents.getByRole("link", { name: "Content", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Typed content collections", exact: true }),
+  ).toBeInViewport();
+  await expect(page).toHaveURL(/#typed-content-collections$/);
   await contents.getByRole("link", { name: "Built with Farm: Viby" }).click();
   await expect(page.getByRole("heading", { name: "Built with Farm: Viby" })).toBeInViewport();
   await expect(page.getByRole("link", { name: "Explore the SDK", exact: true })).toHaveAttribute(
@@ -142,12 +149,12 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await expect(page.getByRole("link", { name: /Read Markdown/i })).toHaveCount(0);
   await expect(contents.getByRole("link", { name: /View source/i })).toHaveCount(0);
   await expect(page.getByText("This post is a", { exact: false })).toHaveCount(0);
-  const markdown = await page.request.get("/blog/farm-0-1.md");
+  const markdown = await page.request.get("/blog/0.1.0.md");
   expect(markdown.ok()).toBe(true);
   expect(await markdown.text()).toContain("# Farm.js v0.1.0: Stable, Integrated, and Agent-Native");
   expect(await markdown.text()).toContain("## Built with Farm: Viby");
-  await page.goto("/blog/farm-0-1.md");
-  await expect(page).toHaveURL(/\/blog\/farm-0-1\.md$/);
+  await page.goto("/blog/0.1.0.md");
+  await expect(page).toHaveURL(/\/blog\/0\.1\.0\.md$/);
   await expect(page.locator("body")).toContainText("# Farm.js v0.1.0");
   await page.goBack();
   await page.getByRole("link", { name: "All posts" }).click();
@@ -180,10 +187,30 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
     "Eve requires Node.js 24 or newer",
     "agent: cfAgent()",
     "useAgent()",
-    "Cloudflare remains a beta deployment target",
+    "The first-class Cloudflare Pages target is stable",
     "EVE_BASE_URL / CF_AGENT_ORIGIN",
     "Other agent frameworks fit through ordinary APIs",
     "Same-origin routing is not authentication",
+    "18 provider integration options, 15 official plugins, composable MCP tools, and five renderers",
+    "18 provider options across 17 dedicated packages",
+    "15 provider scaffolds",
+    "apiClient.billing.products.get()",
+    "const stripeClient = new Stripe(secretKey,",
+    "instance: stripeClient",
+    "maxNetworkRetries: 2",
+    "@farm.js/content/server",
+    'getCollection("posts")',
+    'source: files("content/posts/**/*.{md,mdx}")',
+    "Production remains a build-time snapshot",
+    "Top-level mcp config",
+    "mcp: true",
+    "whose npm package is not published yet",
+    "registerWebMCPTool(listProjects)",
+    "validate: input",
+    "docs MCP as disabled",
+    "/api/docs/agent/spec",
+    "/api/docs/skill.md",
+    "security.csp.nonce",
   ]) {
     await expect(prose).toContainText(detail);
   }
@@ -214,23 +241,74 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
     await expect(prose.locator("pre").first()).toHaveCSS("font-weight", "400");
     await expect(prose).toHaveCSS("font-size", width === 1440 ? "16px" : "15px");
   }
-  for (const path of ["/blog.md", "/blog/farm-0-1.md"]) {
+  for (const path of ["/blog.md", "/blog/0.1.0.md"]) {
     const response = await page.request.get(path);
     expect(response.ok()).toBe(true);
     const markdown = await response.text();
     expect(markdown).toContain("Farm.js v0.1.0");
     expect(markdown).not.toContain("FarmJS");
-    if (path === "/blog/farm-0-1.md") {
+    if (path === "/blog.md") {
+      expect(markdown).toContain("](/blog/0.1.0)");
+    }
+    if (path === "/blog/0.1.0.md") {
       expect(markdown).toContain("agent: eve()");
       expect(markdown).toContain("agent: cfAgent()");
       expect(markdown).toContain("Other agent frameworks fit through ordinary APIs");
+      expect(markdown).toContain("## API routes and standalone MCP tools");
+      expect(markdown).toContain("## Browser tools with WebMCP");
+      expect(markdown).toContain("18 provider integration options");
     }
   }
-  const source = await readFile("docs/src/app/blog/farm-0-1/page.md", "utf8");
+  const source = await readFile("docs/src/app/blog/0.1.0/page.md", "utf8");
   const guides = new Set(
     [...source.matchAll(/https:\/\/farmjs\.dev(\/docs\/[^)#\s]+)/g)].map((match) => match[1]),
   );
   for (const path of guides) await access(`docs/src/app${path}/page.md`);
+});
+
+test("blog documents composed MCP tools and shared authorization in HTML and Markdown", async ({
+  page,
+}) => {
+  await page.goto("/blog");
+  await page.locator(".blog-read-link").click();
+  const prose = page.locator(".blog-prose");
+  await expect(prose).not.toContainText("apiMcp(");
+  await expect(prose).not.toContainText('"GET /api/projects"');
+  // The route file is shown inside the MCP figure, whose full source is kept for Copy and screen readers.
+  const route = prose.locator('.blog-figure[data-figure="mcp-code"] [data-figure-source]');
+  await expect(route).toHaveCount(1);
+  await expect(route).toContainText("// src/app/api/projects/route.ts");
+  await expect(route).toContainText('"/api/projects"');
+  await expect(route).toContainText('method: "GET"');
+  await expect(route).toContainText("middleware: [requireProjectAccess]");
+  await expect(
+    prose.locator('.blog-figure[data-figure="mcp-code"]').getByRole("button", {
+      name: "Copy the full file",
+    }),
+  ).toBeVisible();
+  const config = prose.locator(".blog-code-block").filter({
+    hasText: "authorize: async ({ request, tools })",
+  });
+  await expect(config).toHaveCount(1);
+  await expect(config).toContainText(/mcp:\s*\{\s*name: "my-app"/);
+  await expect(config).toContainText("endpoint: listProjects");
+  await expect(config).toContainText("defineTool({");
+  await expect(config).toContainText('name: "search_projects"');
+  await expect(config).toContainText("outputSchema: z.object({");
+  await expect(config).toContainText("userId: authorization.subject");
+  await expect(config).not.toContainText("plugins:");
+  await expect(prose).toContainText("Enabling MCP never exposes every route automatically");
+  await expect(prose).toContainText("it replaces automatic discovery rather than adding to it");
+  const response = await page.request.get("/blog/0.1.0.md");
+  expect(response.ok()).toBe(true);
+  const markdown = await response.text();
+  expect(markdown).toMatch(/mcp: \{\s+name: "my-app"/);
+  expect(markdown).toContain("endpoint: listProjects");
+  expect(markdown).toContain("defineTool({");
+  expect(markdown).toContain("authorize: async ({ request, tools })");
+  expect(markdown).toContain("outputSchema: z.object({");
+  expect(markdown).not.toContain("apiMcp(");
+  expect(markdown).not.toContain('"GET /api/projects"');
 });
 
 test("blog enhancements survive client navigation, re-entry, and back/forward without reloads", async ({
@@ -277,9 +355,9 @@ test("blog enhancements survive client navigation, re-entry, and back/forward wi
   }
 
   async function checkArticle() {
-    await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
+    await expect(page).toHaveURL(/\/blog\/0\.1\.0$/);
     await checkArtwork();
-    await expect(page.locator(".blog-code-copy:visible")).toHaveCount(6);
+    await expect(page.locator(".blog-code-copy:visible")).toHaveCount(17);
     const nav = page.locator(".blog-contents-links").first();
     const link = nav.getByRole("link", { name: "Built with Farm: Viby" });
     await link.click();
@@ -311,7 +389,7 @@ test("blog enhancements survive client navigation, re-entry, and back/forward wi
   await checkArticle();
   await page.getByRole("link", { name: "All posts", exact: true }).click();
   await page.goBack();
-  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(6);
+  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(17);
   await expect(page.locator(".blog-contents-links").first()).toHaveAttribute(
     "data-highlight-ready",
     "true",
@@ -324,7 +402,7 @@ test("blog enhancements survive client navigation, re-entry, and back/forward wi
 test("shared artwork rolls down, waves, pauses offscreen, and respects reduced motion", async ({
   page,
 }) => {
-  for (const path of ["/blog", "/blog/farm-0-1"]) {
+  for (const path of ["/blog", "/blog/0.1.0"]) {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto(path);
@@ -404,7 +482,7 @@ test("every code block copies exact source and exposes recoverable clipboard fai
   await page.goto("/blog");
   await page.locator(".blog-read-link").click();
   const blocks = page.locator(".blog-code-block");
-  await expect(blocks).toHaveCount(6);
+  await expect(blocks).toHaveCount(17);
   for (const block of await blocks.all()) {
     const text = await block.locator("pre > code").textContent();
     const button = block.getByRole("button");
@@ -439,13 +517,13 @@ test("blog syntax highlighting is server-rendered and preserves every fenced cod
   browser,
   baseURL,
 }) => {
-  const source = await readFile("docs/src/app/blog/farm-0-1/page.md", "utf8");
+  const source = await readFile("docs/src/app/blog/0.1.0/page.md", "utf8");
   const fences = Array.from(source.matchAll(/^```(\w+)\n([\s\S]*?)^```/gm));
-  expect(fences).toHaveLength(6);
+  expect(fences).toHaveLength(17);
   const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
   try {
     const page = await context.newPage();
-    await page.goto("/blog/farm-0-1");
+    await page.goto("/blog/0.1.0");
     const blocks = page.locator(".blog-prose pre > code");
     await expect(blocks).toHaveCount(fences.length);
     for (const [index, [, language, code]] of fences.entries()) {
@@ -470,7 +548,7 @@ test("article sidebar tracks native navigation, reading position, pointer, and k
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/blog/farm-0-1");
+  await page.goto("/blog/0.1.0");
   await expect(page.locator("html")).toHaveCSS("scroll-behavior", "auto");
   const nav = page.locator(".blog-contents-links").first();
   const first = nav.getByRole("link", { name: "What stable means", exact: true });
@@ -521,7 +599,7 @@ test("article sidebar tracks native navigation, reading position, pointer, and k
   await page.goBack();
   await expect(page).toHaveURL(/#an-integrations-ecosystem$/);
   await expect(integrations).toHaveAttribute("aria-current", "location");
-  await page.goto("/blog/farm-0-1#built-with-farm-viby");
+  await page.goto("/blog/0.1.0#built-with-farm-viby");
   await page.evaluate(() => document.fonts.ready);
   await expect(nav.getByRole("link", { name: "Built with Farm: Viby" })).toHaveAttribute(
     "aria-current",
@@ -532,6 +610,380 @@ test("article sidebar tracks native navigation, reading position, pointer, and k
   await page.mouse.wheel(0, 120);
   await expect(nav).toHaveAttribute("data-input", "scroll");
   await expect(indicator).toHaveCSS("transition-duration", "0.22s");
+});
+
+test("agent waitlist validates input and confirms a saved signup after client navigation", async ({
+  page,
+}) => {
+  const submissions: unknown[] = [];
+  let finishResponse!: () => void;
+  const responseReady = new Promise<void>((resolve) => {
+    finishResponse = resolve;
+  });
+  await page.route("**/api/waitlist", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    submissions.push(route.request().postDataJSON());
+    await responseReady;
+    await route.fulfill({ json: { ok: true, id: "browser-test-only" } });
+  });
+  await page.goto("/blog");
+  await page.locator(".blog-read-link").click();
+  const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
+  const email = form.getByLabel("Email address");
+  const submit = form.getByRole("button");
+  await expect(form).toBeVisible();
+  await expect(page.locator("[data-agent-waitlist-unavailable]")).toBeHidden();
+  await expect(page.locator(".blog-prose")).toContainText("It is not part of v0.1.0");
+  await submit.click();
+  await expect(email).toBeFocused();
+  expect(await email.evaluate((input: HTMLInputElement) => input.validity.valueMissing)).toBe(true);
+  expect(submissions).toEqual([]);
+  await email.fill("invalid-email");
+  await submit.click();
+  expect(await email.evaluate((input: HTMLInputElement) => input.validity.typeMismatch)).toBe(true);
+  expect(submissions).toEqual([]);
+  await email.fill("reader@example.com");
+  await email.press("Tab");
+  await expect(submit).toBeFocused();
+  await expect(submit).toHaveCSS("outline-style", "solid");
+  await submit.press("Enter");
+  await expect(form).toHaveAttribute("aria-busy", "true");
+  await expect(submit).toBeDisabled();
+  await expect(submit).toHaveText("Joining…");
+  await expect(email).toHaveAttribute("readonly", "");
+  await expect
+    .poll(() => submissions)
+    .toEqual([
+      {
+        email: "reader@example.com",
+        description: "Agent infrastructure early access — Farm.js v0.1.0 blog",
+      },
+    ]);
+  finishResponse();
+  await expect(form.getByRole("status")).toHaveText(
+    "You're on the list. We'll email you when early access is ready.",
+  );
+  await expect(submit).toHaveText("You're on the list");
+  await expect(submit).toBeDisabled();
+  await expect(form).not.toHaveAttribute("aria-busy");
+
+  await page.getByRole("link", { name: "All posts", exact: true }).click();
+  await page.locator(".blog-read-link").click();
+  await expect(submit).toBeEnabled();
+  await email.fill("returning-reader@example.com");
+  await submit.click();
+  await expect(form.getByRole("status")).toContainText("You're on the list");
+  expect(submissions).toHaveLength(2);
+  const markdown = await page.request.get("/blog/0.1.0.md");
+  expect(await markdown.text()).toContain("## Agent infrastructure");
+});
+
+test("agent waitlist keeps failures recoverable and fits narrow screens", async ({ page }) => {
+  let result = "unavailable";
+  await page.route("**/api/waitlist", async (route) => {
+    if (result === "network") return route.abort("failed");
+    if (result === "rate-limited") {
+      return route.fulfill({ status: 429, json: { ok: false } });
+    }
+    if (result === "malformed") return route.fulfill({ body: "not json" });
+    return route.fulfill({
+      json: result === "success" ? { ok: true, id: "browser-test-only" } : { ok: false },
+    });
+  });
+  await page.goto("/blog/0.1.0");
+  const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
+  const email = form.getByLabel("Email address");
+  const submit = form.getByRole("button");
+  await email.fill("reader@example.com");
+  for (const failure of ["unavailable", "malformed", "network", "rate-limited"]) {
+    result = failure;
+    await submit.click();
+    await expect(form.getByRole("status")).toHaveText(
+      failure === "rate-limited"
+        ? "Too many attempts. Please wait a minute and try again."
+        : "We couldn't save your signup. Please try again in a moment.",
+    );
+    await expect(submit).toBeEnabled();
+    await expect(email).toBeEditable();
+    await expect(email).toHaveValue("reader@example.com");
+  }
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await form.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    for (const control of [email, submit]) {
+      const box = await control.boundingBox();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    }
+  }
+  result = "success";
+  await submit.click();
+  await expect(form.getByRole("status")).toContainText("You're on the list");
+});
+
+test("agents page connects the blog, planned capabilities, Markdown, and shared waitlist", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const submissions: unknown[] = [];
+  await page.route("**/api/waitlist", async (route) => {
+    submissions.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ok: true, id: "agents-page-test-only" } });
+  });
+  await page.goto("/blog/0.1.0");
+  await page.evaluate(() => {
+    (window as Window & { __agentsNavigation?: boolean }).__agentsNavigation = true;
+  });
+  await page.getByRole("link", { name: "explore agent infrastructure", exact: true }).click();
+  await expect(page).toHaveURL(/\/agents$/);
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __agentsNavigation?: boolean }).__agentsNavigation,
+    ),
+  ).toBe(true);
+  await expect(page).toHaveTitle("Agent infrastructure — Farm.js");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveAccessibleName(
+    "Deploy agents. Connect your tools.",
+  );
+  await expect(page.getByText("Coming soon", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".agents-capabilities article")).toHaveCount(4);
+  await expect(page.locator(".agents-capabilities")).toContainText("Deploy MCP servers");
+  await expect(page.locator(".agents-capabilities")).toContainText(
+    "compatible agents talk to your app",
+  );
+  await expect(page.locator("#agents-now-title")).toHaveAccessibleName("Agent-native by default.");
+  const shipped = page.locator(".agents-now article");
+  await expect(shipped).toHaveCount(4);
+  await expect(shipped.getByText("[ Experimental ]")).toHaveCount(2);
+  await expect(shipped.getByRole("link", { name: /Markdown mirrors/ })).toHaveAttribute(
+    "href",
+    "/docs/markdown",
+  );
+  await expect(shipped.getByRole("link", { name: /WebMCP plugin/ })).toHaveAttribute(
+    "href",
+    "/docs/plugins/webmcp",
+  );
+  await expect(page.locator(".agents-availability")).toContainText("not part of Farm.js v0.1.0");
+  await expect(
+    page
+      .getByRole("navigation", { name: "Primary navigation" })
+      .getByRole("link", { name: /Agents/ }),
+  ).toHaveAttribute("aria-current", "page");
+  const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
+  expect(
+    await page
+      .getByRole("navigation", { name: "Primary navigation" })
+      .locator(".truncate")
+      .evaluateAll((labels) => labels.every((label) => label.scrollWidth <= label.clientWidth)),
+  ).toBe(true);
+  await expect(form).toBeVisible();
+  await form.getByLabel("Email address").fill("agents-page@example.com");
+  await form.getByRole("button").click();
+  await expect(form.getByRole("status")).toContainText("You're on the list");
+  expect(submissions).toEqual([
+    {
+      email: "agents-page@example.com",
+      description: "Agent infrastructure early access — Farm.js agents page",
+    },
+  ]);
+  await page.getByRole("link", { name: "Read the announcement", exact: true }).click();
+  await expect(page).toHaveURL(/\/blog\/0\.1\.0#agent-infrastructure$/);
+  await expect(form).toBeVisible();
+  await expect(form.getByRole("button")).toBeEnabled();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/agents$/);
+  await expect(form).toBeVisible();
+  await expect(form.getByRole("button")).toBeEnabled();
+  await page.getByRole("link", { name: "Join the waitlist", exact: true }).click();
+  await expect(page).toHaveURL(/#waitlist$/);
+  await expect(form).toBeInViewport();
+  const mirror = await page.request.get("/agents.md");
+  expect(mirror.ok()).toBe(true);
+  expect(await mirror.text()).toContain("# Agent infrastructure");
+  expect(await mirror.text()).toContain("planned capabilities");
+  expect(await mirror.text()).toContain("## Agent-native by default");
+  expect(errors).toEqual([]);
+});
+
+test("agents ASCII motion starts on navigation, pauses offscreen, and respects reduced motion", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/blog");
+  await page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: /Agents/ })
+    .click();
+  const art = page.locator(".agent-artwork");
+  await expect(art).toHaveAttribute("aria-hidden", "true");
+  await expect(art).toHaveAttribute("data-motion", "running");
+  await expect(art.locator(".agent-ascii-row")).toHaveCount(54);
+  const row = art.locator(".agent-ascii-row").first();
+  await expect(row).toHaveCSS("animation-play-state", "running");
+  await expect(row).toHaveCSS("animation-name", "agent-mesh-breathe");
+  await expect(row).toHaveCSS("transform", "none");
+  // This short page can keep the hero's last pixels in a tall viewport at the
+  // bottom. Establish actual non-intersection before testing the pause state.
+  await page.setViewportSize({ width: 1440, height: 700 });
+  await page.locator("footer").scrollIntoViewIfNeeded();
+  await expect(art).not.toBeInViewport();
+  await expect(art).toHaveAttribute("data-motion", "paused");
+  await expect(row).toHaveCSS("animation-play-state", "paused");
+  await art.scrollIntoViewIfNeeded();
+  await expect(art).toHaveAttribute("data-motion", "running");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(row).toHaveCSS("animation-name", "none");
+});
+
+test("blog and agents omit removed illustrations after navigation", async ({ page }) => {
+  await page.goto("/blog/0.1.0");
+  await expect(page.locator("[data-story], .farm-story, .agents-illustration")).toHaveCount(0);
+  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(17);
+  await expect(
+    page.getByRole("heading", { name: "Typed content collections", exact: true }),
+  ).toHaveCount(1);
+  await expect(page.locator(".blog-prose")).toContainText("instance: stripeClient");
+  await page.getByRole("link", { name: "explore agent infrastructure", exact: true }).click();
+  await expect(page).toHaveURL(/\/agents$/);
+  await expect(page.locator("[data-story], .farm-story, .agents-illustration")).toHaveCount(0);
+  await expect(page.getByRole("form", { name: "Agent infrastructure waitlist" })).toHaveCount(1);
+  await expect(page.locator(".agents-capabilities article")).toHaveCount(4);
+  expect(
+    await page
+      .locator(".agents-capabilities")
+      .evaluate((element) =>
+        element.parentElement?.nextElementSibling?.classList.contains("agents-open-web"),
+      ),
+  ).toBe(true);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/blog\/0\.1\.0(?:#.*)?$/);
+  await expect(page.locator("[data-story], .farm-story")).toHaveCount(0);
+  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(17);
+});
+
+test("agent hero stays typographic", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/agents");
+  const title = page.getByRole("heading", { level: 1 });
+  await expect(title).toHaveText("Deploy agents.Connect your tools.");
+  await expect(
+    page.locator("[data-letter-title], [data-letter-reel], [data-title-replay]"),
+  ).toHaveCount(0);
+  expect(await title.evaluate((element) => element.getAnimations({ subtree: true }).length)).toBe(
+    0,
+  );
+  expect(await title.evaluate((element) => getComputedStyle(element).fontFamily)).not.toMatch(
+    /mono/i,
+  );
+});
+
+test("blog without illustrations remains readable on mobile and without JavaScript", async ({
+  browser,
+  baseURL,
+}) => {
+  for (const javaScriptEnabled of [true, false]) {
+    const context = await browser.newContext({
+      baseURL,
+      javaScriptEnabled,
+      reducedMotion: "reduce",
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto("/blog/0.1.0");
+      for (const width of [320, 390, 768, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await expect(page.locator("[data-story], .farm-story")).toHaveCount(0);
+        await expect(
+          page.getByRole("heading", { name: "Bring your SDK, keep typed callers", exact: true }),
+        ).toHaveCount(1);
+        await expect(page.locator(".blog-code-block")).toHaveCount(17);
+        await expect(page.locator(".blog-code-copy:visible")).toHaveCount(
+          javaScriptEnabled ? 17 : 0,
+        );
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+          true,
+        );
+      }
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+test("agents page stays readable on mobile and without JavaScript", async ({
+  browser,
+  baseURL,
+}) => {
+  for (const javaScriptEnabled of [true, false]) {
+    const context = await browser.newContext({
+      baseURL,
+      javaScriptEnabled,
+      reducedMotion: "reduce",
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto("/agents");
+      for (const width of [320, 390, 768, 1024, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expect(page.locator(".agent-ascii-row").first()).toHaveCSS("animation-name", "none");
+        // Keep the landing-page composition: a full-width hero above the ASCII
+        // artwork, and two roomy feature columns (one on small screens).
+        const hero = await page.locator(".agents-hero-copy").boundingBox();
+        const art = await page.locator(".agent-artwork").boundingBox();
+        expect(art!.y).toBeGreaterThanOrEqual(hero!.y + hero!.height);
+        await expect(page.locator(".agent-artwork")).toHaveCSS("border-top-width", "1px");
+        await expect(page.locator(".agent-artwork")).toHaveCSS("border-top-style", "solid");
+        const mesh = await page.locator(".agent-ascii-row").first().boundingBox();
+        expect(mesh!.x).toBeLessThanOrEqual(art!.x);
+        expect(mesh!.x + mesh!.width).toBeGreaterThanOrEqual(art!.x + art!.width);
+        const features = await page.locator(".agents-capabilities article").evaluateAll((items) =>
+          items.map((item) => {
+            const { x, y, width } = item.getBoundingClientRect();
+            return { x, y, width };
+          }),
+        );
+        if (width > 600) {
+          expect(features[1].y).toBe(features[0].y);
+          expect(features[2].x).toBe(features[0].x);
+          expect(features[2].y).toBeGreaterThan(features[0].y);
+        } else {
+          expect(features[1].x).toBe(features[0].x);
+          expect(features[1].y).toBeGreaterThan(features[0].y);
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+          true,
+        );
+        const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
+        if (javaScriptEnabled) {
+          await expect(form).toBeVisible();
+          for (const control of [form.getByLabel("Email address"), form.getByRole("button")]) {
+            const box = await control.boundingBox();
+            expect(box!.height).toBeGreaterThanOrEqual(44);
+            expect(box!.x).toBeGreaterThanOrEqual(0);
+            expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+          }
+        } else {
+          await expect(page.locator("[data-agent-waitlist]")).toBeHidden();
+          await expect(page.locator("[data-agent-waitlist-unavailable]")).toBeVisible();
+        }
+      }
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.locator("summary").filter({ hasText: "Open navigation" }).click();
+      await expect(
+        page
+          .getByRole("navigation", { name: "Mobile navigation" })
+          .getByRole("link", { name: /Agents/ }),
+      ).toHaveAttribute("aria-current", "page");
+    } finally {
+      await context.close();
+    }
+  }
 });
 
 for (const width of [320, 390, 768]) {
@@ -568,8 +1020,17 @@ for (const width of [320, 390, 768]) {
         true,
       );
       await page.locator(".blog-featured").click();
-      await expect(page).toHaveURL(/\/blog\/farm-0-1$/);
+      await expect(page).toHaveURL(/\/blog\/0\.1\.0$/);
+      await expect(page.locator(".blog-breadcrumb")).toHaveCSS("height", "52px");
+      await expect(page.getByRole("link", { name: "All posts", exact: true })).toHaveCSS(
+        "height",
+        "44px",
+      );
       await expect(page.locator(".blog-code-copy:visible")).toHaveCount(0);
+      await expect(page.locator("[data-agent-waitlist]")).toBeHidden();
+      await expect(page.locator("[data-agent-waitlist-unavailable]")).toHaveText(
+        "Enable JavaScript to join the agent infrastructure waitlist.",
+      );
       await page.locator(".blog-mobile-contents summary").click();
       await page
         .locator(".blog-mobile-contents")
@@ -584,7 +1045,7 @@ for (const width of [320, 390, 768]) {
       );
       expect(
         await page
-          .locator(".blog-prose pre")
+          .locator(".blog-prose pre:not([data-figure-source])")
           .evaluateAll((blocks) =>
             blocks.every((block) => getComputedStyle(block).overflowX === "auto"),
           ),
