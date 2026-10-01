@@ -88,7 +88,8 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await expect(page).toHaveURL(/\/blog\/0\.1\.0$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Farm.js v0.1.0");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "36px");
+  const titleSize = Math.min(36, Math.max(28, page.viewportSize()!.width * 0.028));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", `${titleSize}px`);
   await expect(page.locator(".blog-post-heading h1 br")).toHaveCount(0);
   await expect(page.locator(".blog-post-heading h1")).toHaveCSS("text-wrap", "balance");
   const back = page.getByRole("link", { name: "All posts", exact: true });
@@ -465,6 +466,12 @@ test("shared artwork rolls down, waves, pauses offscreen, and respects reduced m
       }, time);
       await expect(cursor).toHaveCSS("opacity", opacity);
     }
+    // Start with untouched CSS animations for the lifecycle checks. Pausing and
+    // seeking above gives WAAPI ownership to those animation objects; Chromium
+    // retains them even after the reduced-motion media query removes their CSS.
+    await page.goto(path);
+    await expect(art).toHaveAttribute("data-motion", "running");
+    await expect(row).toHaveCSS("animation-play-state", "running");
     await page.setViewportSize({ width: 1440, height: 400 });
     await page.locator("footer").scrollIntoViewIfNeeded();
     await expect(art).not.toBeInViewport();
