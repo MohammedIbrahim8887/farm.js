@@ -13,4 +13,15 @@ describe("release announcement", () => {
     expect(html).not.toContain("Open source");
     expect(html).not.toContain("beta");
   });
+
+  it("gives the announcement action its own visibly underlined link", () => {
+    const html = renderToStaticMarkup(createElement(AnnouncementBar));
+    const link = html.match(/<a\b[^>]*>Read the announcement<\/a>/)?.[0];
+
+    expect(link).toBeDefined();
+    expect(link).toContain('href="/blog/0.1.0"');
+    expect(link).toMatch(/\bunderline\b/);
+    expect(link).toContain("focus-visible:outline");
+    expect(html.match(/<a\b/g)).toHaveLength(1);
+  });
 });

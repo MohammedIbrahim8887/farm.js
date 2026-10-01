@@ -143,14 +143,15 @@ function BrandLockup() {
 
 export function AnnouncementBar() {
   return (
-    <a
-      aria-label="Farm.js v0.1.0 is released. Read the announcement."
-      className="farm-announcement flex h-5 items-center justify-center gap-2 border-b border-white/12 px-4 font-mono text-[10px] font-normal uppercase tracking-normal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
-      href={launchPost.href}
-    >
+    <div className="farm-announcement flex min-h-7 flex-wrap items-center justify-center gap-x-2 border-b border-white/12 px-4 font-mono text-[10px] font-normal uppercase tracking-normal">
       <span className="text-white/76">Farm.js v0.1.0 is released</span>
-      <span className="text-white/52">Read the announcement</span>
-    </a>
+      <a
+        className="inline-flex min-h-7 shrink-0 items-center text-white/80 underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white active:text-white/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        href={launchPost.href}
+      >
+        Read the announcement
+      </a>
+    </div>
   );
 }
 
