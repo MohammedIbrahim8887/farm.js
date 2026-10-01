@@ -118,4 +118,20 @@ describe("launch post figures", () => {
       }
     }
   });
+
+  it("gives phone layouts every panel, inside the stage, on connectors the animation drives", () => {
+    const narrowKinds = kinds.filter((kind) => FIGURES[kind].narrow);
+    expect(narrowKinds.length).toBeGreaterThanOrEqual(5);
+    for (const kind of narrowKinds) {
+      const spec = FIGURES[kind];
+      const narrow = spec.narrow!;
+      expect(narrow.panels.map((p) => p.id).sort()).toEqual(spec.panels.map((p) => p.id).sort());
+      for (const p of narrow.panels) {
+        expect(p.x + p.w).toBeLessThanOrEqual(narrow.stage.w);
+        expect(p.y + p.h).toBeLessThanOrEqual(narrow.stage.h);
+      }
+      const driven = Object.keys(spec.frame(spec.duration).wires);
+      for (const id of Object.keys(narrow.wires)) expect(driven).toContain(id);
+    }
+  });
 });

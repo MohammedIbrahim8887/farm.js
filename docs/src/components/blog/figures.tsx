@@ -9,7 +9,14 @@ import {
 } from "lucide-react";
 import { siCloudflare, siStripe } from "simple-icons";
 import type { CSSProperties, ReactNode } from "react";
-import { FIGURES, STAGE, roundPath, type FigureKind, type IconKey } from "./figure-scripts";
+import {
+  FIGURES,
+  STAGE,
+  roundPath,
+  type FigureGeometry,
+  type FigureKind,
+  type IconKey,
+} from "./figure-scripts";
 
 const pct = (value: number, total: number) => `${(value / total) * 100}%`;
 
@@ -52,102 +59,113 @@ export function BlogFigure({
   fit?: boolean;
 }) {
   const spec = FIGURES[kind];
-  const stage = spec.stage ?? STAGE;
+  const wide: FigureGeometry = {
+    stage: spec.stage ?? STAGE,
+    panels: spec.panels,
+    wires: spec.wires,
+  };
   const last = spec.frame(spec.duration);
-  return (
-    <figure
-      className={`blog-figure${fit ? " blog-figure--fit" : ""}${spec.source ? " blog-figure--code" : ""}`}
-      data-figure={kind}
+  // The stage for one layout; figures with a phone layout render both and CSS shows one.
+  const renderStage = (geometry: FigureGeometry, variant?: "wide" | "narrow") => (
+    <div
+      className={`bf-stage${variant ? ` bf-stage--${variant}` : ""}`}
+      role="img"
+      aria-label={spec.label}
+      style={
+        {
+          aspectRatio: `${geometry.stage.w} / ${geometry.stage.h}`,
+          // Type is sized for a 760-unit stage; smaller stages scale it back up to the same look.
+          "--bf-scale": STAGE.w / geometry.stage.w,
+        } as CSSProperties
+      }
     >
-      <div
-        className="bf-stage"
-        role="img"
-        aria-label={spec.label}
-        style={
-          {
-            aspectRatio: `${stage.w} / ${stage.h}`,
-            // Type is sized for a 760-unit stage; smaller stages scale it back up to the same look.
-            "--bf-scale": STAGE.w / stage.w,
-          } as CSSProperties
-        }
-      >
-        {spec.panels.map((panel) => (
+      {geometry.panels.map((panel) => (
+        <div
+          key={panel.id}
+          className={`bf-panel${panel.flow ? " bf-flow" : panel.icon ? " bf-node" : ""}${panel.code ? " bf-panel--code" : ""}`}
+          data-panel={panel.id}
+          data-state={last.states?.[panel.id]}
+          style={{
+            left: pct(panel.x, geometry.stage.w),
+            top: pct(panel.y, geometry.stage.h),
+            width: pct(panel.w, geometry.stage.w),
+            height: pct(panel.h, geometry.stage.h),
+          }}
+        >
+          {panel.flow ? (
+            <>
+              <span className="bf-flow-icon">{panel.icon ? ICONS[panel.icon] : null}</span>
+              <span className="bf-flow-text">
+                <span className="bf-flow-kicker">{panel.kicker}</span>
+                {panel.badges ? (
+                  <span className="bf-flow-title bf-flow-badges" aria-label={panel.label}>
+                    {panel.badges.map(([icon, name]) => (
+                      <span className="bf-badge" key={name}>
+                        {ICONS[icon]}
+                        {name}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="bf-flow-title">{panel.label}</span>
+                )}
+              </span>
+            </>
+          ) : panel.icon ? (
+            <>
+              <span className="bf-icon">{ICONS[panel.icon]}</span>
+              <span className="bf-label">{panel.label}</span>
+              {panel.sub ? <span className="bf-sub">{panel.sub}</span> : null}
+            </>
+          ) : panel.code ? (
+            <span className="bf-legend">{panel.title}</span>
+          ) : (
+            <div className="bf-head">
+              <span>{panel.title}</span>
+              <span
+                data-slot={`${panel.id}:meta`}
+                dangerouslySetInnerHTML={{ __html: last.slots[`${panel.id}:meta`] ?? "" }}
+              />
+            </div>
+          )}
           <div
-            key={panel.id}
-            className={`bf-panel${panel.flow ? " bf-flow" : panel.icon ? " bf-node" : ""}${panel.code ? " bf-panel--code" : ""}`}
-            data-panel={panel.id}
-            data-state={last.states?.[panel.id]}
-            style={{
-              left: pct(panel.x, stage.w),
-              top: pct(panel.y, stage.h),
-              width: pct(panel.w, stage.w),
-              height: pct(panel.h, stage.h),
-            }}
-          >
-            {panel.flow ? (
-              <>
-                <span className="bf-flow-icon">{panel.icon ? ICONS[panel.icon] : null}</span>
-                <span className="bf-flow-text">
-                  <span className="bf-flow-kicker">{panel.kicker}</span>
-                  {panel.badges ? (
-                    <span className="bf-flow-title bf-flow-badges" aria-label={panel.label}>
-                      {panel.badges.map(([icon, name]) => (
-                        <span className="bf-badge" key={name}>
-                          {ICONS[icon]}
-                          {name}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    <span className="bf-flow-title">{panel.label}</span>
-                  )}
-                </span>
-              </>
-            ) : panel.icon ? (
-              <>
-                <span className="bf-icon">{ICONS[panel.icon]}</span>
-                <span className="bf-label">{panel.label}</span>
-                {panel.sub ? <span className="bf-sub">{panel.sub}</span> : null}
-              </>
-            ) : panel.code ? (
-              <span className="bf-legend">{panel.title}</span>
-            ) : (
-              <div className="bf-head">
-                <span>{panel.title}</span>
-                <span
-                  data-slot={`${panel.id}:meta`}
-                  dangerouslySetInnerHTML={{ __html: last.slots[`${panel.id}:meta`] ?? "" }}
-                />
-              </div>
-            )}
-            <div
-              className="bf-body"
-              data-slot={panel.id}
-              dangerouslySetInnerHTML={{ __html: last.slots[panel.id] ?? "" }}
-            />
-          </div>
-        ))}
-        <svg className="bf-wires" viewBox={`0 0 ${stage.w} ${stage.h}`} aria-hidden="true">
-          {Object.entries(spec.wires).map(([id, points]) => {
-            const [ax, ay] = points[0];
-            const [bx, by] = points[points.length - 1];
-            return (
-              <g key={id} data-wire={id} data-dim={last.wires[id]?.dim ? "" : undefined}>
-                <path className="bf-wire" d={roundPath(points)} />
-                <circle className="bf-end" data-end="a" cx={ax} cy={ay} r="3.2" />
-                <circle className="bf-end" data-end="b" cx={bx} cy={by} r="3.2" />
-                <circle className="bf-glow" r="10" />
-                <circle className="bf-pulse" r="4" />
-              </g>
-            );
-          })}
+            className="bf-body"
+            data-slot={panel.id}
+            dangerouslySetInnerHTML={{ __html: last.slots[panel.id] ?? "" }}
+          />
+        </div>
+      ))}
+      <svg
+        className="bf-wires"
+        viewBox={`0 0 ${geometry.stage.w} ${geometry.stage.h}`}
+        aria-hidden="true"
+      >
+        {Object.entries(geometry.wires).map(([id, points]) => {
+          const [ax, ay] = points[0];
+          const [bx, by] = points[points.length - 1];
+          return (
+            <g key={id} data-wire={id} data-dim={last.wires[id]?.dim ? "" : undefined}>
+              <path className="bf-wire" d={roundPath(points)} />
+              <circle className="bf-end" data-end="a" cx={ax} cy={ay} r="3.2" />
+              <circle className="bf-end" data-end="b" cx={bx} cy={by} r="3.2" />
+              <circle className="bf-glow" r="10" />
+              <circle className="bf-pulse" r="4" />
+            </g>
+          );
+        })}
+      </svg>
+      <button type="button" className="bf-play" aria-label="Play illustration">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 5.5v13l11-6.5z" />
         </svg>
-        <button type="button" className="bf-play" aria-label="Play illustration">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 5.5v13l11-6.5z" />
-          </svg>
-        </button>
-      </div>
+      </button>
+    </div>
+  );
+
+  return (
+    <figure className={`blog-figure${fit ? " blog-figure--fit" : ""}`} data-figure={kind}>
+      {renderStage(wide, spec.narrow && !fit ? "wide" : undefined)}
+      {spec.narrow && !fit ? renderStage(spec.narrow, "narrow") : null}
       {spec.source ? (
         <pre className="sr-only" data-figure-source="">
           {spec.source}

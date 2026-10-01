@@ -21,9 +21,10 @@ function enhanceFigure(figure: HTMLElement): () => void {
   if (!spec || matchMedia("(prefers-reduced-motion: reduce)").matches) return () => {};
 
   const panels = [...figure.querySelectorAll<HTMLElement>("[data-panel]")];
-  const slots = new Map<string, HTMLElement>();
+  // A figure may render a wide and a phone layout; both share slots, wires, and panels by id.
+  const slots = new Map<string, HTMLElement[]>();
   for (const el of figure.querySelectorAll<HTMLElement>("[data-slot]"))
-    slots.set(el.dataset.slot!, el);
+    slots.set(el.dataset.slot!, [...(slots.get(el.dataset.slot!) ?? []), el]);
   const wires = [...figure.querySelectorAll<SVGGElement>("[data-wire]")].map((group) => {
     const path = group.querySelector<SVGPathElement>(".bf-wire")!;
     return {
@@ -37,7 +38,7 @@ function enhanceFigure(figure: HTMLElement): () => void {
       pulse: group.querySelector<SVGCircleElement>(".bf-pulse")!,
     };
   });
-  const play = figure.querySelector<HTMLButtonElement>(".bf-play")!;
+  const plays = [...figure.querySelectorAll<HTMLButtonElement>(".bf-play")];
   const toggle = figure.querySelector<HTMLButtonElement>(".bf-toggle");
   const replay = figure.querySelector<HTMLButtonElement>(".bf-replay");
   const copy = figure.querySelector<HTMLButtonElement>(".bf-copy");
@@ -78,10 +79,10 @@ function enhanceFigure(figure: HTMLElement): () => void {
 
   function render(t: number) {
     const next = spec.frame(t);
-    for (const [key, el] of slots) {
+    for (const [key, els] of slots) {
       const html = next.slots[key] ?? "";
       if (cache.get(key) !== html) {
-        el.innerHTML = html;
+        for (const el of els) el.innerHTML = html;
         cache.set(key, html);
       }
     }
@@ -137,7 +138,7 @@ function enhanceFigure(figure: HTMLElement): () => void {
   const onPlay = () => start(0);
   const onToggle = () => (playing ? pause() : start());
   const onReplay = () => start(0);
-  play.addEventListener("click", onPlay);
+  for (const play of plays) play.addEventListener("click", onPlay);
   toggle?.addEventListener("click", onToggle);
   replay?.addEventListener("click", onReplay);
   let copiedTimer = 0;
@@ -180,7 +181,7 @@ function enhanceFigure(figure: HTMLElement): () => void {
   return () => {
     observer.disconnect();
     document.removeEventListener("visibilitychange", onVisibility);
-    play.removeEventListener("click", onPlay);
+    for (const play of plays) play.removeEventListener("click", onPlay);
     toggle?.removeEventListener("click", onToggle);
     replay?.removeEventListener("click", onReplay);
     copy?.removeEventListener("click", onCopy);

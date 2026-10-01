@@ -70,7 +70,16 @@ export interface PanelSpec {
   badges?: [IconKey, string][];
 }
 
+/** Where a figure's panels and connectors sit on a stage of a given size. */
+export interface FigureGeometry {
+  stage: { w: number; h: number };
+  panels: PanelSpec[];
+  wires: Record<string, [number, number][]>;
+}
+
 export interface FigureSpec {
+  /** A single-column layout of the same panels and connectors for phones (the post only). */
+  narrow?: FigureGeometry;
   duration: number;
   /** Stage size in figure units; defaults to STAGE. Compact figures fit small landing cards. */
   stage?: { w: number; h: number };
@@ -1528,6 +1537,121 @@ const agentsObserve: FigureSpec = {
       wires: {},
       states: {},
     };
+  },
+};
+
+/* ---------- phone layouts: the same panels and connectors in one column (post figures only) ---------- */
+// Stages are 360 units wide, so type renders near its desktop size on a phone instead of shrinking.
+
+integration.narrow = {
+  stage: { w: 360, h: 642 },
+  panels: [
+    { id: "term", title: "Terminal", x: 0, y: 28, w: 340, h: 230, code: true },
+    { id: "env", title: "Environment", x: 0, y: 282, w: 340, h: 82 },
+    { id: "files", title: "Files", x: 0, y: 392, w: 340, h: 250 },
+  ],
+  wires: {
+    run: [
+      [340, 120],
+      [352, 120],
+      [352, 517],
+      [340, 517],
+    ],
+    env: [
+      [170, 258],
+      [170, 282],
+    ],
+  },
+};
+
+preview.narrow = {
+  stage: { w: 360, h: 380 },
+  panels: [
+    { id: "local", x: 95, y: 0, w: 170, h: 90, icon: "farm", label: "localhost:3000" },
+    { id: "relay", x: 0, y: 130, w: 360, h: 100, icon: "relay", label: "Public URL" },
+    { id: "phone", x: 0, y: 280, w: 110, h: 100, icon: "phone", label: "Phone" },
+    { id: "mate", x: 125, y: 280, w: 110, h: 100, icon: "browser", label: "Teammate" },
+    { id: "hook", x: 250, y: 280, w: 110, h: 100, icon: "stripe", label: "Webhook" },
+  ],
+  wires: {
+    tunnel: [
+      [180, 90],
+      [180, 130],
+    ],
+    phone: [
+      [180, 230],
+      [180, 255],
+      [55, 255],
+      [55, 280],
+    ],
+    mate: [
+      [180, 230],
+      [180, 280],
+    ],
+    hook: [
+      [180, 230],
+      [180, 255],
+      [305, 255],
+      [305, 280],
+    ],
+  },
+};
+
+const R_CLIENT_Y = 28 + R_H + 40;
+mcpCode.narrow = {
+  stage: { w: 360, h: R_CLIENT_Y + 320 },
+  panels: [
+    { id: "route", x: 0, y: 28, w: 360, h: R_H, code: true, title: "route.ts" },
+    { id: "client", x: 0, y: R_CLIENT_Y, w: 360, h: 320, title: "MCP client" },
+  ],
+  wires: {
+    call: [
+      [60, R_CLIENT_Y],
+      [60, 28 + R_H],
+    ],
+    back: [
+      [300, 28 + R_H],
+      [300, R_CLIENT_Y],
+    ],
+  },
+};
+
+const W_PAGE_Y = 28 + W_H + 32;
+const W_AGENT_Y = W_PAGE_Y + PAGE_H + 36;
+webmcpCode.narrow = {
+  stage: { w: 360, h: W_AGENT_Y + 120 },
+  panels: [
+    { id: "code", x: 0, y: 28, w: 360, h: W_H, code: true, title: "projects-agent-tools.ts" },
+    { id: "page", x: 0, y: W_PAGE_Y, w: 360, h: PAGE_H, title: "/projects" },
+    { id: "agent", x: 90, y: W_AGENT_Y, w: 180, h: 120, icon: "agent", label: "Browser agent" },
+  ],
+  wires: {
+    register: [
+      [300, 28 + W_H],
+      [300, W_PAGE_Y],
+    ],
+    execute: [
+      [100, W_PAGE_Y],
+      [100, 28 + W_H],
+    ],
+    call: [
+      [180, W_AGENT_Y],
+      [180, W_PAGE_Y + PAGE_H],
+    ],
+  },
+};
+
+agentsCode.narrow = {
+  stage: { w: 360, h: 28 + 200 + 36 + A_H },
+  panels: [
+    { id: "config", x: 0, y: 28, w: 360, h: 200, code: true, title: "farm.config.ts" },
+    { id: "chat", x: 0, y: 28 + 200 + 36, w: 360, h: A_H, title: "localhost:3000" },
+  ],
+  wires: {
+    run: [
+      [180, 228],
+      [180, 264],
+    ],
   },
 };
 
