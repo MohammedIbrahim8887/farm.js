@@ -6,6 +6,14 @@ import { launchSections } from "./blog";
 const post = readFileSync(new URL("../app/blog/0.1.0/page.md", import.meta.url), "utf8");
 
 describe("launch post content", () => {
+  it("closes with a migration guide and distinguishes automated and manual paths", () => {
+    const closing = post.slice(post.indexOf("## Try it"));
+    expect(closing).toContain("[Migrate to Farm.js](https://farmjs.dev/docs/migrations)");
+    expect(closing).toContain("farm migrate inspect");
+    expect(closing).toContain("Next.js and TanStack Start have dry-run-first CLI migrators");
+    expect(closing).toContain("Nuxt and SvelteKit have step-by-step manual guides");
+  });
+
   it("links to agent infrastructure without embedding the signup form", () => {
     expect(post).toContain("[Explore agent infrastructure](/agents)");
     expect(post).not.toContain("<AgentWaitlist");

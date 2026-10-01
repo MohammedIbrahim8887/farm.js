@@ -311,3 +311,5 @@ If pnpm's `minimumReleaseAge` policy holds back a just-published release, the [u
 Coming from a beta, preview the package changes with `farm upgrade --latest --dry-run`, then run `farm upgrade --latest`. Review the [upgrade guide](https://farmjs.dev/docs/upgrading), run your app's checks and production build, and replace deprecated APIs before a later minor release removes them. `latest` does not turn every independently versioned plugin or renderer into a stable package.
 
 If something breaks, open an issue on [GitHub](https://github.com/farming-labs/farm.js/issues) with `farm doctor` output, the renderer, deployment target, and a small reproduction. Remove credentials and private application data before sharing logs. Thanks to everyone who ran the betas and told me what was wrong.
+
+**Already have an app?** [Migrate to Farm.js](https://farmjs.dev/docs/migrations). Next.js and TanStack Start have dry-run-first CLI migrators; Nuxt and SvelteKit have step-by-step manual guides. Run `farm migrate inspect` to identify a supported source, review the plan, and apply changes only when you're ready.
