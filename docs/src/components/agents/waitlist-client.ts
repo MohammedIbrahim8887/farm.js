@@ -11,7 +11,6 @@ export function enhanceAgentWaitlist(root: HTMLElement) {
   const lifecycle = new AbortController();
   let request: AbortController | undefined;
   let pending = false;
-  let joined = false;
   form.hidden = false;
   if (fallback) fallback.hidden = true;
 
@@ -19,7 +18,7 @@ export function enhanceAgentWaitlist(root: HTMLElement) {
     "submit",
     async (event) => {
       event.preventDefault();
-      if (pending || joined || !form.reportValidity()) return;
+      if (pending || !form.reportValidity()) return;
       pending = true;
       button.disabled = true;
       email.readOnly = true;
@@ -52,8 +51,7 @@ export function enhanceAgentWaitlist(root: HTMLElement) {
         if (!response.ok || result?.ok !== true || typeof result.id !== "string") {
           throw new Error("Signup was not confirmed");
         }
-        joined = true;
-        status.textContent = "You're on the list. We'll email you when early access is ready.";
+        form.reset();
       } catch {
         if (!lifecycle.signal.aborted) {
           status.textContent = "We couldn't save your signup. Please try again in a moment.";
@@ -63,9 +61,9 @@ export function enhanceAgentWaitlist(root: HTMLElement) {
         pending = false;
         if (!lifecycle.signal.aborted) {
           form.removeAttribute("aria-busy");
-          button.disabled = joined;
-          email.readOnly = joined;
-          label.textContent = joined ? "You're on the list" : "Join the waitlist";
+          button.disabled = false;
+          email.readOnly = false;
+          label.textContent = "Join the waitlist";
         }
       }
     },

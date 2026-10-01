@@ -58,10 +58,21 @@ describe("waitlist button feedback", () => {
 
     finish(Response.json({ ok: true, id: "test-only" }));
     await vi.waitFor(() => expect(form.hasAttribute("aria-busy")).toBe(false));
-    expect(button.textContent).toBe("You're on the list");
-    expect(button.disabled).toBe(true);
-    expect(status.textContent).toContain("You're on the list");
+    expect(button.textContent).toBe("Join the waitlist");
+    expect(button.disabled).toBe(false);
+    expect(email.readOnly).toBe(false);
+    expect(email.value).toBe("");
+    expect(status.textContent).toBe("");
     expect(button.querySelector(".agent-waitlist-loader")).toBe(loader);
+
+    email.value = "another-reader@example.com";
+    submit();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(button.textContent).toBe("Joining…");
+    finish(Response.json({ ok: true, id: "another-test-only" }));
+    await vi.waitFor(() => expect(form.hasAttribute("aria-busy")).toBe(false));
+    expect(button.textContent).toBe("Join the waitlist");
+    expect(status.textContent).toBe("");
   });
 
   it.each(["server", "network", "rate-limit", "malformed"])(
@@ -84,12 +95,19 @@ describe("waitlist button feedback", () => {
       expect(button.textContent).toBe("Join the waitlist");
       expect(button.disabled).toBe(false);
       expect(email.readOnly).toBe(false);
+      expect(email.value).toBe("reader@example.com");
       expect(button.querySelectorAll(".agent-waitlist-loader > span")).toHaveLength(9);
       expect(status.textContent).toContain(
         failure === "rate-limit" ? "Too many attempts" : "couldn't save",
       );
       submit();
-      await vi.waitFor(() => expect(button.textContent).toBe("You're on the list"));
+      expect(button.textContent).toBe("Joining…");
+      expect(status.textContent).toBe("");
+      await vi.waitFor(() => expect(form.hasAttribute("aria-busy")).toBe(false));
+      expect(button.textContent).toBe("Join the waitlist");
+      expect(button.disabled).toBe(false);
+      expect(email.value).toBe("");
+      expect(status.textContent).toBe("");
     },
   );
 

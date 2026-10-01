@@ -61,7 +61,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  /* Reserve the longest label so pending and success never resize the button. */
+  /* Reserve the idle label width so loading never resizes the button. */
   min-width: 18ch;
   white-space: nowrap;
 }
