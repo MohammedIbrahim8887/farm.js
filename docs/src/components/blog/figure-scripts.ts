@@ -17,7 +17,9 @@ export type FigureKind =
   | "agents-deploy"
   | "agents-connect"
   | "agents-site"
-  | "agents-observe";
+  | "agents-observe"
+  | "landing-markdown"
+  | "landing-strata";
 export type IconKey =
   | "stripe"
   | "cloudflare"
@@ -1540,6 +1542,125 @@ const agentsObserve: FigureSpec = {
   },
 };
 
+/* ---------- landing: Markdown mirrors and native rendering, in the agents-page visual system ---------- */
+
+// One route answers a browser with HTML and an agent with Markdown, like the launch film's
+// "readable by agents" scene.
+const MIRROR_MD: [string, string][] = [
+  ["bf-dim", "GET /pricing.md"],
+  ["bf-hi", "# Pricing"],
+  ["", "- Hobby: free"],
+  ["", "- Pro: $20 / month"],
+  ["", "- Team: $50 / month"],
+];
+const landingMarkdown: FigureSpec = {
+  duration: 0.9 + PULSE + BEAT + PULSE + MIRROR_MD.length * 0.3 + HOLD,
+  stage: { w: 440, h: 300 },
+  label:
+    "One route, /pricing, answers a browser with the HTML page and an agent with the same page as Markdown",
+  panels: [
+    {
+      id: "route",
+      x: 120,
+      y: 0,
+      w: 200,
+      h: 48,
+      flow: true,
+      icon: "page",
+      kicker: "One route",
+      label: "/pricing",
+    },
+    { id: "browser", x: 0, y: 88, w: 205, h: 212, title: "Browser" },
+    { id: "agent", x: 235, y: 88, w: 205, h: 212, title: "Agent" },
+  ],
+  wires: {
+    html: [
+      [190, 48],
+      [190, 68],
+      [102, 68],
+      [102, 88],
+    ],
+    md: [
+      [250, 48],
+      [250, 68],
+      [337, 68],
+      [337, 88],
+    ],
+  },
+  frame(t) {
+    const html = 0.9;
+    const md = html + BEAT;
+    const page = html + PULSE;
+    const mdAt = md + PULSE;
+    const blocks = VIBY_BLOCKS.map(([x, y, w, h], i) => {
+      const k = ease(prog(t, page + i * 0.12, 0.3));
+      return `<span class="bf-vblock${i === 3 ? " bf-vblock--on" : ""}" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;opacity:${k.toFixed(3)}"></span>`;
+    }).join("");
+    const lines = MIRROR_MD.map(
+      ([cls, text], i) =>
+        `<span class="bf-line${cls ? ` ${cls}` : ""}" style="opacity:${ease(prog(t, mdAt + i * 0.3, 0.3)).toFixed(3)}">${esc(text)}</span>`,
+    ).join("");
+    return {
+      slots: {
+        route: step(t, 0.3, html),
+        browser: `<span class="bf-vprev">${blocks}</span>`,
+        "browser:meta": t >= page ? "text/html" : "",
+        agent: lines,
+        "agent:meta": t >= mdAt ? "text/markdown" : "",
+      },
+      wires: {
+        html: wire(t, 0.1, [[html]]),
+        md: wire(t, 0.2, [[md]]),
+      },
+      states: {
+        route: busy(t, 0.3, html),
+        browser: busy(t, page, page + 0.6),
+        agent: busy(t, mdAt, mdAt + MIRROR_MD.length * 0.3),
+      },
+    };
+  },
+};
+
+// Native rendering, as a tool-call run: each eligibility check runs, then the region goes to Strata.
+const BOUNDARY_CHECKS: [GlyphKey, string, string, string][] = [
+  ["search", "Host-only tree", "no client boundary inside", "pass"],
+  ["file", "Client code", "hooks and browser APIs", "none"],
+  ["swap", "Events or refs", "handlers and refs", "none"],
+  ["model", "Size gate", "large enough to pay off", "pass"],
+  ["server", "Render", "Strata, Rust-native", "native"],
+];
+const landingStrata: FigureSpec = {
+  duration: 0.4 + BOUNDARY_CHECKS.length * BEAT + HOLD,
+  stage: { w: 440, h: 300 },
+  label:
+    "Farm scans a large Server Component region; once every check passes, it renders the region with Strata's Rust-native renderer",
+  panels: [{ id: "scan", x: 0, y: 0, w: 440, h: 300, title: "Boundary scan · <article>" }],
+  wires: {},
+  frame(t) {
+    let done = 0;
+    const rows = BOUNDARY_CHECKS.map(([icon, name, sub, result], i) => {
+      const start = 0.4 + i * BEAT;
+      const end = start + BEAT * 0.75;
+      const finished = t >= end;
+      if (finished) done++;
+      const last = i === BOUNDARY_CHECKS.length - 1;
+      return row(
+        icon,
+        name,
+        esc(sub),
+        finished ? result : "",
+        step(t, start, end),
+        t >= start && (!finished || last) ? "bf-von" : t < start ? "bf-item--wait" : "",
+      );
+    }).join("");
+    return {
+      slots: { scan: rows, "scan:meta": `${done} / ${BOUNDARY_CHECKS.length}` },
+      wires: {},
+      states: {},
+    };
+  },
+};
+
 /* ---------- phone layouts: the same panels and connectors in one column (post figures only) ---------- */
 // Stages are 360 units wide, so type renders near its desktop size on a phone instead of shrinking.
 
@@ -1671,6 +1792,8 @@ export const FIGURES: Record<FigureKind, FigureSpec> = {
   "agents-connect": agentsConnect,
   "agents-site": agentsSite,
   "agents-observe": agentsObserve,
+  "landing-markdown": landingMarkdown,
+  "landing-strata": landingStrata,
 };
 
 /** SVG path with rounded elbows through the given stage points. */
