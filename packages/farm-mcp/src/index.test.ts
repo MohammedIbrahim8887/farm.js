@@ -62,13 +62,19 @@ function createFixture(options: { authorize?: boolean; config?: FarmMCPConfig } 
   return { endpoint, middleware };
 }
 
-async function sendMCP(endpoint: any, body: unknown, authorization?: string) {
+async function sendMCP(
+  endpoint: any,
+  body: unknown,
+  authorization?: string,
+  requestHeaders?: Record<string, string>,
+) {
   const headers = new Headers({
     accept: "application/json, text/event-stream",
     "content-type": "application/json",
     "mcp-protocol-version": "2025-11-25",
   });
   if (authorization) headers.set("authorization", authorization);
+  for (const [name, value] of Object.entries(requestHeaders ?? {})) headers.set(name, value);
   return invokeAPIRouteEndpoint(
     endpoint,
     new Request("http://farm.test/api/mcp", {
@@ -250,6 +256,85 @@ describe("apiMcp", () => {
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Unauthorized" });
     expect(authorize).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not let tool inputs override request-provenance headers", async () => {
+    const handler = vi.fn((request: Request) => ({
+      origin: request.headers.get("origin"),
+      forwardedHost: request.headers.get("x-forwarded-host"),
+      clientTag: request.headers.get("x-client-tag"),
+    }));
+    const echo = route.post("/api/echo", {
+      mcp: { name: "echo" },
+      input: {
+        headers: z.object({
+          "x-client-tag": z.string().optional(),
+          origin: z.string().optional(),
+          "x-forwarded-host": z.string().optional(),
+          "x-client-ip": z.string().optional(),
+          "x-original-host": z.string().optional(),
+          "x-original-url": z.string().optional(),
+        }),
+      },
+      handler,
+    });
+    const plugin = apiMcp({ allowUnauthenticated: true });
+    const routes = mergePluginAPIRoutes(
+      [{ path: echo.path, methods: [echo.method], endpoints: { POST: echo.endpoint } }],
+      [plugin],
+    );
+    const endpoint = routes.find((entry) => entry.path === "/api/mcp")!.endpoints.POST;
+    const list = await readMCP(
+      await sendMCP(endpoint, { jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    );
+    const headerSchema = list.result.tools[0].inputSchema.properties.headers;
+    expect(headerSchema.properties).toHaveProperty("x-client-tag");
+    expect(headerSchema.properties).not.toHaveProperty("origin");
+    expect(headerSchema.properties).not.toHaveProperty("x-forwarded-host");
+    expect(headerSchema.properties).not.toHaveProperty("x-client-ip");
+    expect(headerSchema.properties).not.toHaveProperty("x-original-host");
+    expect(headerSchema.properties).not.toHaveProperty("x-original-url");
+
+    const allowed = await readMCP(
+      await sendMCP(endpoint, {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "echo", arguments: { headers: { "x-client-tag": "tool" } } },
+      }),
+    );
+    expect(allowed.result.structuredContent).toEqual({
+      result: {
+        origin: null,
+        forwardedHost: null,
+        clientTag: "tool",
+      },
+    });
+    handler.mockClear();
+
+    const result = await readMCP(
+      await sendMCP(
+        endpoint,
+        {
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "echo",
+            arguments: {
+              headers: {
+                origin: "https://evil.example",
+                "x-forwarded-host": "evil.example",
+              },
+            },
+          },
+        },
+        undefined,
+        { origin: "https://trusted.example", "x-forwarded-host": "trusted.example" },
+      ),
+    );
+    expect(result.result.isError).toBe(true);
+    expect(result.result.content[0].text).toContain("additional properties schema");
     expect(handler).not.toHaveBeenCalled();
   });
 
