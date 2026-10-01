@@ -429,31 +429,6 @@
 }
 
 /* controls */
-.bf-play {
-  display: none;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 4.6em;
-  height: 4.6em;
-  margin: -2.3em 0 0 -2.3em;
-  border: 1px solid rgb(255 255 255 / 0.2);
-  border-radius: 50%;
-  background: rgb(10 10 10 / 0.86);
-  color: #ededed;
-  cursor: pointer;
-}
-.bf-play svg {
-  width: 1.8em;
-  height: 1.8em;
-  margin-left: 0.2em;
-  fill: currentColor;
-}
-.blog-figure[data-state="idle"] .bf-play {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
 /* The verbatim source stays readable by screen readers; `.blog-prose pre` would otherwise outrank `.sr-only`. */
 .blog-figure pre[data-figure-source] {
   position: absolute;

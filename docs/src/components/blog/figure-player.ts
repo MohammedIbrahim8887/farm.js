@@ -38,7 +38,6 @@ function enhanceFigure(figure: HTMLElement): () => void {
       pulse: group.querySelector<SVGCircleElement>(".bf-pulse")!,
     };
   });
-  const plays = [...figure.querySelectorAll<HTMLButtonElement>(".bf-play")];
   const toggle = figure.querySelector<HTMLButtonElement>(".bf-toggle");
   const replay = figure.querySelector<HTMLButtonElement>(".bf-replay");
   const copy = figure.querySelector<HTMLButtonElement>(".bf-copy");
@@ -130,15 +129,13 @@ function enhanceFigure(figure: HTMLElement): () => void {
     setState(state);
   }
 
-  // Take over from the server frame: rewind to the first frame and wait to be seen.
+  // Keep the server's finished frame until the figure is on screen, then play from the start on
+  // its own; there is no play button to press.
   figure.dataset.ready = "";
-  render(0);
   setState("idle");
 
-  const onPlay = () => start(0);
   const onToggle = () => (playing ? pause() : start());
   const onReplay = () => start(0);
-  for (const play of plays) play.addEventListener("click", onPlay);
   toggle?.addEventListener("click", onToggle);
   replay?.addEventListener("click", onReplay);
   let copiedTimer = 0;
@@ -159,15 +156,19 @@ function enhanceFigure(figure: HTMLElement): () => void {
   };
   copy?.addEventListener("click", onCopy);
 
+  // Play once a fifth of the figure is on screen (tall phone layouts rarely show 60% at once),
+  // and pause again only when it has left the screen entirely.
   const observer = new IntersectionObserver(
     ([entry]) => {
+      const seen = entry.isIntersecting && entry.intersectionRatio >= 0.2;
       visible = entry.isIntersecting;
       if (!visible && playing) {
         pause("paused");
         autoPaused = true;
-      } else if (visible && (!started || autoPaused)) start(started ? undefined : 0);
+      } else if (seen && (!started || autoPaused)) start(started ? undefined : 0);
     },
-    { threshold: 0.6 },
+    // Report every 10% so a callback landing just under 20% is followed by one that crosses it.
+    { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] },
   );
   observer.observe(figure);
   const onVisibility = () => {
@@ -181,7 +182,6 @@ function enhanceFigure(figure: HTMLElement): () => void {
   return () => {
     observer.disconnect();
     document.removeEventListener("visibilitychange", onVisibility);
-    for (const play of plays) play.removeEventListener("click", onPlay);
     toggle?.removeEventListener("click", onToggle);
     replay?.removeEventListener("click", onReplay);
     copy?.removeEventListener("click", onCopy);

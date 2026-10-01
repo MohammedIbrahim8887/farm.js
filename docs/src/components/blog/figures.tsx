@@ -154,11 +154,6 @@ export function BlogFigure({
           );
         })}
       </svg>
-      <button type="button" className="bf-play" aria-label="Play illustration">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M8 5.5v13l11-6.5z" />
-        </svg>
-      </button>
     </div>
   );
 
