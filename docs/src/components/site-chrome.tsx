@@ -11,6 +11,7 @@ import {
   Layers3,
   Menu,
   Newspaper,
+  Network,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -33,6 +34,7 @@ const navItems = [
   },
   { index: "04", label: "Resources", href: "/docs", icon: FileText },
   { index: "05", label: "Blog", href: "/blog", icon: Newspaper },
+  { index: "06", label: "Agents", href: "/agents", icon: Network },
 ] as const;
 
 const footerGroups = [
@@ -57,6 +59,7 @@ const footerGroups = [
       ["Integrations", "/docs/integrations"],
       ["API client", "/docs/api-client"],
       ["Deployment", "/docs/deployment"],
+      ["Agent infrastructure", "/agents"],
     ],
   },
   {
@@ -155,7 +158,7 @@ export function AnnouncementBar() {
   );
 }
 
-export function SiteHeader({ activePage }: { activePage?: "blog" }) {
+export function SiteHeader({ activePage }: { activePage?: "blog" | "agents" }) {
   return (
     <header className="farm-full-rule sticky top-0 z-50 bg-black/94 backdrop-blur-xl">
       <div className="flex h-11 w-full items-stretch">
@@ -165,13 +168,13 @@ export function SiteHeader({ activePage }: { activePage?: "blog" }) {
 
         <nav
           aria-label="Primary navigation"
-          className="hidden min-w-0 flex-1 items-stretch border-l border-white/12 lg:flex"
+          className="hidden min-w-0 flex-1 items-stretch border-l border-white/12 xl:flex"
         >
           {navItems.map((item) => (
             <a
               key={item.label}
-              aria-current={activePage === "blog" && item.href === "/blog" ? "page" : undefined}
-              className="aria-[current=page]:bg-white/[0.04] aria-[current=page]:text-white flex h-full min-w-0 flex-1 items-center border-r border-white/12 px-3 font-mono uppercase tracking-normal text-white/48 transition-colors duration-150 hover:bg-white/[0.035] hover:text-white focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white xl:px-5"
+              aria-current={activePage && item.href === `/${activePage}` ? "page" : undefined}
+              className="aria-[current=page]:bg-white/[0.04] aria-[current=page]:text-white flex h-full min-w-0 flex-auto items-center border-r border-white/12 px-3 font-mono uppercase tracking-normal text-white/48 transition-colors duration-150 hover:bg-white/[0.035] hover:text-white focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white xl:px-4"
               href={item.href}
             >
               <IndexedLabel index={item.index} icon={item.icon} label={item.label} />
@@ -179,7 +182,7 @@ export function SiteHeader({ activePage }: { activePage?: "blog" }) {
           ))}
         </nav>
 
-        <div className="ml-auto hidden shrink-0 items-stretch lg:flex">
+        <div className="ml-auto hidden shrink-0 items-stretch xl:flex">
           <a
             aria-label="Open Farm.js on GitHub"
             className="grid size-11 place-items-center border-l border-white/12 text-white/52 transition-colors duration-150 hover:bg-white/[0.035] hover:text-white focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
@@ -197,7 +200,7 @@ export function SiteHeader({ activePage }: { activePage?: "blog" }) {
           </a>
         </div>
 
-        <details className="group relative ml-auto border-l border-white/12 lg:hidden">
+        <details className="group relative ml-auto border-l border-white/12 xl:hidden">
           <summary className="grid size-11 cursor-pointer list-none place-items-center text-white transition-colors hover:bg-white/[0.04] [&::-webkit-details-marker]:hidden">
             <span className="sr-only">Open navigation</span>
             <Menu aria-hidden className="size-4 group-open:hidden" strokeWidth={1.5} />
@@ -207,11 +210,11 @@ export function SiteHeader({ activePage }: { activePage?: "blog" }) {
             aria-label="Mobile navigation"
             className="absolute -right-px top-11 w-screen overflow-hidden border border-white/14 bg-black shadow-2xl shadow-black/60"
           >
-            {[...navItems, { index: "06", label: "Docs", href: "/docs", icon: BookOpenText }].map(
+            {[...navItems, { index: "07", label: "Docs", href: "/docs", icon: BookOpenText }].map(
               (item) => (
                 <a
                   key={item.label}
-                  aria-current={activePage === "blog" && item.href === "/blog" ? "page" : undefined}
+                  aria-current={activePage && item.href === `/${activePage}` ? "page" : undefined}
                   className="flex h-12 items-center border-b border-white/10 px-4 font-mono uppercase tracking-normal text-white/58 last:border-b-0 hover:bg-white/[0.04] hover:text-white"
                   href={item.href}
                 >

@@ -123,6 +123,39 @@ describe("waitlist signup endpoint", () => {
   });
 
   describe("successful signups (handler treats ctx.body as already-validated)", () => {
+    it("accepts the blog's agent infrastructure signup using the existing schema", async () => {
+      process.env.DATABASE_URL = "postgresql://test/farmjs";
+      const description = "Agent infrastructure early access — Farm.js v0.1.0 blog";
+      const response = await invokeAPIRouteEndpoint(
+        POST,
+        waitlistRequest({ email: "agent-reader@example.com", description }),
+      );
+
+      await expect(response.json()).resolves.toEqual({ ok: true, id: "test-id" });
+      expect(prismaMocks.upsert).toHaveBeenCalledWith({
+        where: { email: "agent-reader@example.com" },
+        update: { description },
+        create: { email: "agent-reader@example.com", description },
+        select: { id: true },
+      });
+    });
+
+    it("accepts a signup from the dedicated agents page", async () => {
+      process.env.DATABASE_URL = "postgresql://test/farmjs";
+      const description = "Agent infrastructure early access — Farm.js agents page";
+      const response = await invokeAPIRouteEndpoint(
+        POST,
+        waitlistRequest({ email: "agents-page@example.com", description }),
+      );
+      await expect(response.json()).resolves.toEqual({ ok: true, id: "test-id" });
+      expect(prismaMocks.upsert).toHaveBeenCalledWith({
+        where: { email: "agents-page@example.com" },
+        update: { description },
+        create: { email: "agents-page@example.com", description },
+        select: { id: true },
+      });
+    });
+
     it("accepts a valid signup and returns the persisted entry id", async () => {
       process.env.DATABASE_URL = "postgresql://test/farmjs";
 
