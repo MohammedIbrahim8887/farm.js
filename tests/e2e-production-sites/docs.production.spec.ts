@@ -208,7 +208,7 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
     "getCollection()",
     "Production remains a build-time snapshot",
     "Top-level mcp config",
-    "whose npm package is not published yet",
+    "It requires the optional @farm.js/mcp runtime",
     "registerWebMCPTool(listProjects)",
     "validate: input",
     "agent discovery spec",
@@ -216,6 +216,7 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
   ]) {
     await expect(prose).toContainText(detail);
   }
+  await expect(prose).not.toContainText("whose npm package is not published yet");
   for (const [label, path] of [
     ["Eve guide", "/docs/integrations/eve"],
     ["Cloudflare Agents guide", "/docs/integrations/cf-agent"],
