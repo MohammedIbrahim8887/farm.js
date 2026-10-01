@@ -253,6 +253,7 @@ mount, and shortcut together.
 | api           | Configuring the public root used by Farm's typed browser API client.                  |
 | integrations  | Registering built-in or custom integrations.                                          |
 | auth          | Enabling Farm's built-in email/password auth, sessions, helpers, and hooks.           |
+| mcp           | Composing API routes and standalone tools in one authenticated MCP server.            |
 | theme         | Enabling light, dark, and system modes with client and server APIs.                   |
 | storage       | Configuring KV drivers/mounts and, in the current beta, an integration DB client.     |
 | migrations    | Running one-shot schema/provider commands with `farm migrate`.                        |
@@ -344,6 +345,34 @@ This also applies to RSC builds and their Nitro servers, including apps configur
 `defineConfig` from `@farm.js/plugin/rsc`. API requests at the custom prefix stay on the API
 pipeline rather than being decoded as server actions. The canonical `/api` routes remain available;
 an external API URL changes the client destination only, not the local server mount.
+
+## MCP transport
+
+Install `@farm.js/mcp`, then configure one authenticated transport directly—no plugin array is
+needed:
+
+```ts title="farm.config.ts"
+import { defineConfig } from "@farm.js/core";
+
+export default defineConfig({
+  mcp: {
+    authorize: async ({ request }) => {
+      const session = await getSession(request);
+      return session ? { subject: session.user.id } : false;
+    },
+  },
+});
+```
+
+This mounts `/api/mcp`. Typed API routes are not exposed as MCP tools unless their endpoint config sets
+`mcp: true` or supplies MCP metadata, or you explicitly select endpoint instances in `mcp.tools`.
+`authorize` receives `{ request, tool, tools, server }`; return `{ subject, tools: ["tool_name"] }`
+to limit both discovery and invocation for that caller. You can also add standalone `defineTool()`
+definitions from `@farm.js/mcp` to the same list; these validate their own input and receive the
+authorized principal without creating separate HTTP routes. Optional `outputSchema` validates
+standalone results; endpoint-backed tools reuse a route factory's `output` validator. Both advertise
+the validated result shape to MCP clients. See [API MCP](/docs/plugins/mcp) for
+mixed declarations, the resolved catalog, and permission checks.
 
 ## Isolated client hydration
 
@@ -539,16 +568,38 @@ security: {
 
 You can also pass an already serialized policy as `csp: "default-src 'self'; object-src 'none'"`. The longer `contentSecurityPolicy` config name is intentionally unsupported; use `csp`.
 
-Farm currently emits small inline hydration, theme, and route-state bootstraps, so the compatible example allows inline scripts and styles. Keep `reportOnly` on while auditing, inspect violations, and enforce only after the deployed HTML and every third-party integration satisfy the policy.
+Farm emits small inline hydration, theme, and route-state bootstraps. The first example uses the
+compatibility path, so it permits inline scripts. For a strict script policy, enable Farm's managed
+script authorization and remove `'unsafe-inline'`:
 
-### Strict script policies are not supported yet
+```ts
+security: {
+  csp: {
+    nonce: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+}
+```
 
-Farm's inline scripts carry no nonce, and their content changes per page, so neither a nonce nor a hash can allow them. The directive that governs script elements (`script-src-elem`, then `script-src`, then `default-src`) must therefore:
+For dynamic HTML, Farm generates a fresh nonce for every response, adds it to the directive that
+governs script elements (`script-src-elem`, then `script-src`, then `default-src`), and stamps every
+script element in the streamed document. Any existing script `nonce` attribute is normalized to the
+fresh response nonce so application-authored inline scripts follow the same policy.
 
-- include `'unsafe-inline'`, and
-- list no `'nonce-…'`, `'sha256-…'`/`'sha384-…'`/`'sha512-…'`, or `'strict-dynamic'` source. Browsers ignore `'unsafe-inline'` as soon as any of those is present, which blocks Farm's scripts and stops hydration.
+For fully prerendered HTML, the same option keeps the page static. Farm removes the build-time nonce,
+hashes the exact contents of every inline script with SHA-256, and emits a route-specific policy with
+those hashes. External scripts still need their origin in `script-src` or `script-src-elem`. Dynamic
+responses and PPR shells continue to use fresh nonces, so a nonce is never cached or reused. Keep
+`reportOnly` on while auditing and verify every third-party script and connection before enforcing the
+policy.
 
-Farm checks the resolved policy at startup and warns when it would block these scripts. Per-request nonce support is tracked in [#1275](https://github.com/farming-labs/farm.js/issues/1275). You can still restrict script origins, `object-src`, `base-uri`, `frame-ancestors`, `form-action`, and the other directives above.
+Without `nonce: true`, Farm warns when a configured policy would block its inline framework scripts.
 
 ## Server HTTP policy
 

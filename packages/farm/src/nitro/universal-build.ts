@@ -43,6 +43,7 @@ import type { FarmIsolatedClientHydrationMode } from "../types";
 import { isFarmMarkdownPageFile } from "../app-markdown";
 import type { ProgrammaticRedirectRoute } from "../routes";
 import type { NitroConfig } from "nitro/types";
+import { applyFarmCspHashesToHtml } from "../security";
 import {
   applyFarmWorkflowVercelCrons,
   prepareFarmWorkflowsForNitro,
@@ -67,6 +68,9 @@ import {
   resolveFarmDocsSearchClientModule,
 } from "../docs/search-client";
 import { resolveFarmDocsFontAssets, toFarmDocsPublicFontAssets } from "../docs/fonts";
+import { compileFarmDocsManifest } from "../docs/compiler";
+import { compileFarmDocsAdapterEdgeManifest } from "../docs/adapter";
+import type { FarmDocsCompiledManifest } from "../docs/precompiled-runtime";
 import {
   createFarmRouteRuntimeManifest,
   validateFarmRouteRuntimeDeployment,
@@ -734,6 +738,10 @@ function hasFarmServerRuntimePlugins(config: ResolvedFarmConfig): boolean {
   });
 }
 
+function hasFarmPluginRoutes(config: ResolvedFarmConfig): boolean {
+  return (config.plugins || []).some((plugin) => Boolean(plugin.routes));
+}
+
 export async function discoverMiddlewareRoutes(
   appDir: string | readonly string[],
 ): Promise<UniversalMiddlewareRoute[]> {
@@ -795,6 +803,28 @@ export async function discoverMiddlewareRoutes(
  * - Uses virtual bundle plugin to expose to Nitro
  * - Creates virtual entry wrapping Web Standard handler
  */
+/** External docs adapters must explicitly publish the versioned compiler Farm
+ * uses to turn their Node-backed build runtime into an edge-safe snapshot. */
+export function assertFarmDocsRuntimeSupported(
+  config: Pick<ResolvedFarmConfig, "docs">,
+  preset: string,
+): void {
+  if (
+    !config.docs?.enabled ||
+    !config.docs.adapter?.server ||
+    getFarmPresetRuntime(preset) !== "edge" ||
+    Boolean(config.docs.adapter.edgeCompiler)
+  ) {
+    return;
+  }
+  throw new Error(
+    `The configured docs adapter (${config.docs.adapter.id}) has not declared an edge compiler, ` +
+      `but the "${preset}" preset deploys to an edge runtime. Set docs.adapter = false ` +
+      "to use Farm's precompiled embedded renderer, choose a Node target, or disable docs for " +
+      "this deployment.",
+  );
+}
+
 export async function buildUniversal(
   config: ResolvedFarmConfig,
   routeManager: RouteManager,
@@ -810,6 +840,7 @@ export async function buildUniversal(
 ): Promise<void> {
   const root = options.root || config.root || process.cwd();
   const preset = options.preset || config.preset || "node-server";
+  assertFarmDocsRuntimeSupported(config, preset);
   const srcDir = config.srcDir || "src";
   const distDir = config.distDir || ".farm";
   const deployOutputDir = resolveDeployOutputPath(root, config.deploy.outputDir);
@@ -4022,6 +4053,7 @@ async function buildSSRInMemory(
   const hasMiddlewareConfig = hasFarmMiddlewareConfig(config.middleware);
   const hasRouteContextConfig = hasCustomFarmRouteContext(config);
   const hasServerRuntimePlugins = hasFarmServerRuntimePlugins(config);
+  const hasPluginRoutes = hasFarmPluginRoutes(config);
   const configModulePath =
     hasServerRuntimeIntegrations ||
     hasObservabilityHandler ||
@@ -4029,6 +4061,7 @@ async function buildSSRInMemory(
     hasMiddlewareConfig ||
     hasRouteContextConfig ||
     hasServerRuntimePlugins ||
+    hasPluginRoutes ||
     hasIntegrationProviders
       ? await findFarmConfigPath(root)
       : null;
@@ -4037,6 +4070,25 @@ async function buildSSRInMemory(
   const hasConfiguredRuntimePlugins = Boolean(
     hasRuntimeConfigModule && (config.plugins || []).length > 0,
   );
+  const farmDocsPrecompiledManifest =
+    config.docs?.enabled && getFarmPresetRuntime(preset) === "edge"
+      ? config.docs.adapter?.server
+        ? await compileFarmDocsAdapterEdgeManifest(config.docs, {
+            root,
+            srcDir: config.srcDir,
+            clientEntry: FARM_CLIENT_JS_SRC_PLACEHOLDER,
+            fontStylesheetHref: "/farm-fonts.css",
+            globalStylesheetHref: "/assets/globals.css",
+          })
+        : await compileFarmDocsManifest(config.docs, {
+            root,
+            srcDir: config.srcDir,
+            clientEntry: FARM_CLIENT_JS_SRC_PLACEHOLDER,
+            fontAssets: toFarmDocsPublicFontAssets(resolveFarmDocsFontAssets(root)),
+            fontStylesheetHref: "/farm-fonts.css",
+            globalStylesheetHref: "/assets/globals.css",
+          })
+      : null;
 
   // Generate virtual entry code that imports and bundles all routes
   // This ensures all route handlers are captured in the bundle closure
@@ -4056,10 +4108,12 @@ async function buildSSRInMemory(
     notFoundPath,
     instrumentationPath,
     config,
+    farmDocsPrecompiledManifest,
     configModulePath,
     hasServerRuntimeIntegrations,
     hasRuntimeIntegrationConfig,
     hasConfiguredRuntimePlugins,
+    hasServerRuntimePlugins,
     preset,
     i18nCatalogs,
     isolatedClientBoundaryModules,
@@ -4282,18 +4336,29 @@ async function buildSSRInMemory(
  * Generate virtual entry code that bundles all routes
  * This creates managers at runtime from bundled code
  */
-export function generateFarmDocsRuntimeConfigExpression(docs: ResolvedFarmConfig["docs"]): string {
+export function generateFarmDocsRuntimeConfigExpression(
+  docs: ResolvedFarmConfig["docs"],
+  precompiled = false,
+): string {
   if (!docs.enabled) return "null";
 
   const baseConfig = {
     ...docs,
     contentDir: undefined,
+    ...(precompiled ? { configPath: undefined } : {}),
     config: undefined,
   };
   const nestedConfig = {
     ...docs.config,
     contentDir: undefined,
   };
+
+  if (precompiled) {
+    return JSON.stringify({
+      ...baseConfig,
+      config: nestedConfig,
+    });
+  }
 
   return `farmDocsBundledContentDir
   ? {
@@ -4346,6 +4411,58 @@ export function generateNativeAuthIntegrationSource(auth: ResolvedFarmConfig["au
   root: process.cwd(),
   mode: "production",
 });`,
+  };
+}
+
+/**
+ * Runtime source that remounts the top-level `mcp` configuration in a built server.
+ *
+ * Production re-evaluates raw layer and application config modules instead of
+ * calling `resolveConfig`, so the internal plugin created during the build is
+ * not otherwise present in the runtime plugin list. The literal import keeps
+ * the optional MCP package traceable for server and edge bundles while disabled
+ * applications carry no import or runtime code.
+ */
+export function generateNativeMCPPluginSource(mcp: ResolvedFarmConfig["mcp"] | undefined): {
+  importSource: string;
+  registerSource: string;
+  pluginSource: string;
+} {
+  if (mcp?.enabled !== true) {
+    return { importSource: "", registerSource: "", pluginSource: "" };
+  }
+
+  return {
+    importSource: `import { createFarmMCPPlugin as __farmCreateMCPPlugin } from "@farm.js/mcp/internal";`,
+    registerSource: `function __farmMCPIsPlainObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function __farmMergeMCPConfig(base, override) {
+  const output = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    if (value === undefined) continue;
+    output[key] =
+      __farmMCPIsPlainObject(output[key]) && __farmMCPIsPlainObject(value)
+        ? __farmMergeMCPConfig(output[key], value)
+        : value;
+  }
+  return output;
+}
+
+const farmNativeMCPConfig = farmRuntimeConfigs.reduce((merged, runtimeConfig) => {
+  const value = runtimeConfig?.mcp;
+  if (value === undefined) return merged;
+  if (value === false) return false;
+  return __farmMergeMCPConfig(merged && merged !== false ? merged : {}, value);
+}, undefined);
+const farmNativeMCPPlugin =
+  farmNativeMCPConfig && farmNativeMCPConfig.enabled !== false
+    ? __farmCreateMCPPlugin(farmNativeMCPConfig)
+    : null;`,
+    pluginSource: `...(farmNativeMCPPlugin ? [farmNativeMCPPlugin] : []),`,
   };
 }
 
@@ -4478,10 +4595,12 @@ function generateVirtualEntryCode(
   notFoundPath: string | null,
   instrumentationPath: string | null,
   config: ResolvedFarmConfig,
+  farmDocsPrecompiledManifest: FarmDocsCompiledManifest | null,
   configModulePath: string | null,
   hasServerRuntimeIntegrations: boolean,
   hasRuntimeIntegrationConfig: boolean,
   hasConfiguredRuntimePlugins: boolean,
+  hasServerRuntimePlugins: boolean,
   preset: string,
   i18nCatalogs: FarmI18nCatalogs,
   isolatedClientBoundaryModules: ReadonlySet<string>,
@@ -4489,7 +4608,8 @@ function generateVirtualEntryCode(
 ): string {
   const hasCompressionRuntime =
     config.compress && resolveFarmInstrumentationRuntime(preset) === "nodejs";
-  const hasPluginRuntime = hasRuntimeIntegrationConfig || hasConfiguredRuntimePlugins;
+  const hasPluginRuntime = hasRuntimeIntegrationConfig || hasServerRuntimePlugins;
+  const hasPrecompiledDocs = Boolean(farmDocsPrecompiledManifest);
   const adapterOwnsDocsRuntime = Boolean(
     isReactRenderer(config.renderer) &&
     config.docs?.enabled &&
@@ -4824,6 +4944,7 @@ function generateVirtualEntryCode(
   addMetadataImageReference,
   appendFarmRedirectQuery,
   applyFarmBasePath,
+  applyFarmCspNonceToResponse,
   applyFarmThemeDocument,
   appendFarmLinkHeader,
   applyProductionMiddlewareHeaders,
@@ -4859,6 +4980,7 @@ function generateVirtualEntryCode(
   resolveFarmRouteContext,
   resolveFarmTrailingSlashRedirect,
   resolveDefaultErrorStatus,
+  resolveFarmSecurityConfig,
   resolveFarmInstrumentationRuntime,
   runWithFarmRequestSpan,
   searchParamsToObject,
@@ -4884,29 +5006,40 @@ function generateVirtualEntryCode(
     ? `import { _runWithFarmI18nRequest, _setDefaultFarmI18nRuntime, createFarmI18nRuntime, getFarmI18nClientSnapshot } from "@farm.js/core/i18n/server";`
     : "";
   const docsHandlerImport = config.docs?.enabled
-    ? adapterOwnsDocsRuntime
-      ? `import { isFarmDocsAPIRequest } from "@farm.js/core/docs";
+    ? hasPrecompiledDocs
+      ? `import { createFarmDocsPrecompiledRuntime } from "@farm.js/core/internal/docs-precompiled-runtime";
+const isFarmDocsAPIRequest = (requestOrPathname) => {
+  const pathname = typeof requestOrPathname === "string"
+    ? requestOrPathname
+    : new URL(requestOrPathname.url).pathname;
+  const apiPath = ${JSON.stringify(farmDocsPrecompiledManifest?.apiPath || "/api/docs")};
+  return pathname === apiPath || pathname.startsWith(apiPath + "/");
+};`
+      : adapterOwnsDocsRuntime
+        ? `import { isFarmDocsAPIRequest } from "@farm.js/core/docs";
 import { createFarmDocsRuntimeHandler as createFarmDocsAdapterRuntimeHandler } from ${JSON.stringify(config.docs.adapter!.server)};
 import * as FarmDocsAdapterReact from ${JSON.stringify(config.docs.adapter!.react)};`
-      : `import { createFarmDocsAPIHandler, createFarmDocsHandler, isFarmDocsAPIRequest } from "@farm.js/core/docs";`
+        : `import { createFarmDocsAPIHandler, createFarmDocsHandler, isFarmDocsAPIRequest } from "@farm.js/core/docs";`
     : "";
-  const docsFontImport = config.docs?.enabled
-    ? `import { resolveFarmLayoutFonts } from "@farm.js/core/font";`
-    : "";
-  const docsRuntimeImport = config.docs?.enabled
-    ? `import { existsSync as farmDocsExistsSync } from "node:fs";
+  const docsFontImport =
+    config.docs?.enabled && !hasPrecompiledDocs
+      ? `import { resolveFarmLayoutFonts } from "@farm.js/core/font";`
+      : "";
+  const docsRuntimeImport =
+    config.docs?.enabled && !hasPrecompiledDocs
+      ? `import { existsSync as farmDocsExistsSync } from "node:fs";
 import { dirname as farmDocsDirname, join as farmDocsJoin } from "node:path";
 import { fileURLToPath as farmDocsFileURLToPath } from "node:url";`
-    : "";
+      : "";
   const markdownHandlerImport = config.md?.enabled
     ? `import { applyMarkdownNegotiationHeaders, createMarkdownMirrorResponse } from "@farm.js/core/markdown";`
     : "";
   const appMarkdownImport = hasMarkdownPages
-    ? `import { createFarmMarkdownRouteModule, createFarmMarkdownSourceResponse } from "@farm.js/core/app-markdown";`
+    ? `import { createFarmMarkdownRouteModule, createFarmMarkdownSourceResponse } from "@farm.js/core/internal/app-markdown-runtime";`
     : "const createFarmMarkdownSourceResponse = null;";
   // Always available: agents can request Markdown on any route, so the
   // Markdown error body is not gated on the app having Markdown page files.
-  const markdownErrorImport = `import { FARM_MARKDOWN_CONTENT_TYPE, createFarmMarkdownErrorBody, farmRequestWantsMarkdown } from "@farm.js/core/app-markdown";`;
+  const markdownErrorImport = `import { FARM_MARKDOWN_CONTENT_TYPE, createFarmMarkdownErrorBody, farmRequestWantsMarkdown } from "@farm.js/core/internal/app-markdown-runtime";`;
   const mdxComponentsPath =
     typeof config.mdx?.components === "string"
       ? path.isAbsolute(config.mdx.components)
@@ -4947,11 +5080,13 @@ import { fileURLToPath as farmDocsFileURLToPath } from "node:url";`
     ? `import * as FarmInstrumentationModule from ${toVirtualEntryImportSpecifier(instrumentationPath)};`
     : "";
   const nativeAuth = generateNativeAuthIntegrationSource(config.auth);
+  const nativeMCP = generateNativeMCPPluginSource(config.mcp);
   const integrationImports = `
 ${configModulePath ? `import * as FarmUserConfigModule from ${toVirtualEntryImportSpecifier(configModulePath)};` : ""}
 ${layerConfigImports}
 ${integrationRuntimeImport}
 ${nativeAuth.importSource}
+${nativeMCP.importSource}
 `;
   const imageRuntime = resolveImageRuntime(config, preset);
   const imageRuntimeImport =
@@ -5146,6 +5281,7 @@ const farmUserConfig = ${
   };
 const farmRuntimeConfigs = [${[...layerConfigValues, "farmUserConfig"].join(", ")}].filter(Boolean);
 const farmResolvedRuntimeConfig = Object.assign({}, ...farmRuntimeConfigs);
+${nativeMCP.registerSource}
 // Config middleware from layers is appended in layer order ahead of the
 // project's, the same merge development applies (mergeFarmLayerConfig).
 // Object.assign above would keep only the last config's middleware.
@@ -5213,6 +5349,7 @@ const integrationRuntimeConfig = Object.assign({}, ...farmRuntimeConfigs, {
 const configuredPlugins = [
   ${hasCompressionRuntime && hasPluginRuntime ? "createCompressionPlugin()," : ""}
   ${hasRuntimeIntegrationConfig ? "...resolveIntegrationPlugins(serverRuntimeIntegrations)," : ""}
+  ${nativeMCP.pluginSource}
   ${
     hasConfiguredRuntimePlugins
       ? `...farmRuntimeConfigs.flatMap((runtimeConfig) =>
@@ -5273,6 +5410,7 @@ configureFarmCache(farmResolvedRuntimeConfig.cache);
 const farmI18nConfig = ${JSON.stringify(config.i18n)};
 const farmServerConfig = ${JSON.stringify(config.server)};
 const farmThemeConfig = ${JSON.stringify(config.theme)};
+const farmSecurityConfig = resolveFarmSecurityConfig(${JSON.stringify(config.security)});
 _setDefaultFarmThemeConfig(farmThemeConfig);
 const farmInstrumentationLifecycle = createFarmInstrumentationLifecycle(
   ${instrumentationPath ? "FarmInstrumentationModule" : "null"},
@@ -5309,7 +5447,7 @@ const farmI18nRuntime = ${
   };
 ${config.i18n.enabled ? "_setDefaultFarmI18nRuntime(farmI18nRuntime);" : ""}
 const farmDocsBundledContentDir = ${
-    config.docs?.enabled
+    config.docs?.enabled && !hasPrecompiledDocs
       ? `(() => {
   try {
     const currentDir = farmDocsDirname(farmDocsFileURLToPath(import.meta.url));
@@ -5325,17 +5463,24 @@ const farmDocsBundledContentDir = ${
 })()`
       : "null"
   };
-const farmDocsResolvedConfig = ${generateFarmDocsRuntimeConfigExpression(config.docs)};
-const farmDocsRuntimeRoot = farmDocsBundledContentDir || ${JSON.stringify(config.root)};
+const farmDocsResolvedConfig = ${generateFarmDocsRuntimeConfigExpression(config.docs, hasPrecompiledDocs)};
+const farmDocsRuntimeRoot = ${hasPrecompiledDocs ? '"."' : `farmDocsBundledContentDir || ${JSON.stringify(config.root)}`};
 globalThis.__FARM_DOCS_RUNTIME_CONFIG__ = {
   root: farmDocsRuntimeRoot,
   srcDir: ${JSON.stringify(config.srcDir)},
   docs: farmDocsResolvedConfig,
 };
+const farmDocsPrecompiledRuntime = ${
+    hasPrecompiledDocs
+      ? `createFarmDocsPrecompiledRuntime(${JSON.stringify(farmDocsPrecompiledManifest)})`
+      : "null"
+  };
 const farmDocsHandler = ${
     config.docs?.enabled
-      ? adapterOwnsDocsRuntime
-        ? `createFarmDocsAdapterRuntimeHandler({
+      ? hasPrecompiledDocs
+        ? "farmDocsPrecompiledRuntime.handleDocsRequest"
+        : adapterOwnsDocsRuntime
+          ? `createFarmDocsAdapterRuntimeHandler({
   ...farmDocsResolvedConfig.config,
   entry: farmDocsResolvedConfig.config?.entry || String(farmDocsResolvedConfig.entry || "/docs").replace(/^\\/+|\\/+$/g, "") || "docs",
   docsPath: farmDocsResolvedConfig.entry,
@@ -5350,7 +5495,7 @@ const farmDocsHandler = ${
     ),
   loadReactModule: async () => FarmDocsAdapterReact,
 })`
-        : `createFarmDocsHandler(farmDocsResolvedConfig, {
+          : `createFarmDocsHandler(farmDocsResolvedConfig, {
   root: farmDocsRuntimeRoot,
   srcDir: ${JSON.stringify(config.srcDir)},
   clientEntry: "/__farm_client_js_src__",
@@ -5366,15 +5511,21 @@ const farmDocsHandler = ${
   };
 const farmDocsAPIHandler = ${
     config.docs?.enabled
-      ? adapterOwnsDocsRuntime
-        ? "null"
-        : `createFarmDocsAPIHandler({ rootDir: farmDocsRuntimeRoot, srcDir: ${JSON.stringify(config.srcDir)}, docs: farmDocsResolvedConfig })`
+      ? hasPrecompiledDocs
+        ? "farmDocsPrecompiledRuntime.handleAPIRequest"
+        : adapterOwnsDocsRuntime
+          ? "null"
+          : `createFarmDocsAPIHandler({ rootDir: farmDocsRuntimeRoot, srcDir: ${JSON.stringify(config.srcDir)}, docs: farmDocsResolvedConfig })`
       : "null"
   };
 
 // API routes bundled at build time
 const apiRoutes = ${apiRoutes.length > 0 ? "mergePluginAPIRoutes(" : ""}[${apiRegistrations.join(",")}
-]${apiRoutes.length > 0 ? `, configuredPlugins, ${JSON.stringify(apiRoutes.map(({ path, methods }) => ({ path, methods })))})` : ""};
+]${
+    apiRoutes.length > 0
+      ? `, configuredPlugins, ${JSON.stringify(apiRoutes.map(({ path, methods }) => ({ path, methods })))}, { bodySizeLimit: ${JSON.stringify(config.server.bodySizeLimit)} })`
+      : ""
+  };
 const farmLocalAPIBasePath = ${JSON.stringify(resolveFarmAPIServerBasePath(config.api))};
 const farmOpenAPIReference = ${JSON.stringify(openAPIReference)};
 
@@ -5743,7 +5894,22 @@ function extractFarmFullDocument(markup) {
   const start = markup.search(/<!doctype|<html[\\s>]/i);
   const closeIndex = markup.toLowerCase().lastIndexOf("</html>");
   if (start < 0 || closeIndex < 0) return null;
-  return markup.slice(start, closeIndex + "</html>".length);
+  const closeEnd = closeIndex + "</html>".length;
+  let document = markup.slice(start, closeEnd);
+  // Farm's segment wrappers sit outside an app-authored <html>. When React
+  // streams a suspended descendant, it closes those wrappers after </html>
+  // and then emits the reveal payload. Keep that payload inside <body> instead
+  // of discarding it with the wrapper suffix.
+  const streamedTail = markup
+    .slice(closeEnd)
+    .replace(/^(?:\\s*<\\/div>)+/i, "")
+    .trim();
+  if (streamedTail) {
+    document = document.replace(/<\\/body>/i, function() {
+      return streamedTail + "</body>";
+    });
+  }
+  return document;
 }
 
 function ensureFarmDocumentHead(markup) {
@@ -8072,7 +8238,10 @@ async function handleFarmFetch(request, context) {
           const pathname = new URL(runtimeRequest.url).pathname;
           const routePathname = getFarmRoutePathname(pathname);
           return applyFarmPreloadBudget(
-            applyConfiguredResponseHeaders(response, routePathname),
+            applyFarmCspNonceToResponse(
+              applyConfiguredResponseHeaders(response, routePathname),
+              farmSecurityConfig,
+            ),
             routePathname,
           );
         };
@@ -8793,6 +8962,27 @@ export default async function farmNitroEventHandler(event) {
 
   // Build with Nitro
   const nitroInstance = await nitroBuilder.createNitro(nitroConfig);
+  if (config.security.csp && config.security.csp.nonce) {
+    nitroInstance.hooks.hook("prerender:generate", async (route) => {
+      if (!route.contents || !route.contentType?.toLowerCase().includes("html")) return;
+      const staticCsp = await applyFarmCspHashesToHtml(route.contents, config.security);
+      if (!staticCsp) return;
+
+      route.contents = staticCsp.html;
+      const routeRule = nitroInstance.options.routeRules[route.route] || {};
+      const headers = { ...routeRule.headers };
+      for (const key of Object.keys(headers)) {
+        if (key.toLowerCase() === staticCsp.header.key.toLowerCase()) delete headers[key];
+      }
+      headers[staticCsp.header.key] = staticCsp.header.value;
+      nitroInstance.options.routeRules[route.route] = { ...routeRule, headers };
+    });
+    nitroInstance.hooks.hook("prerender:done", () => {
+      // The final adapter build reads both the resolved options and Nitro's
+      // routing index. Refresh the latter after per-page policies are known.
+      nitroInstance.routing.sync();
+    });
+  }
   if (farmNodeServerEntryPath) {
     // The custom entry is only for the final long-running Node server. Nitro
     // derives its prerenderer config from this config, so remove the override
@@ -9172,7 +9362,9 @@ async function copyFarmDocsContentForVercel(
   const docsContentDir = resolveBuildDocsContentDir(config, root);
   if (!docsContentDir) return;
 
-  const bundledContentDir = path.join(nitroFuncDir, "chunks", "nitro", "farm-docs-content");
+  // Nitro v3 emits the SSR entry at the function root. Its docs lookup searches
+  // beside the entry and its ancestors, not the old chunks/nitro directory.
+  const bundledContentDir = path.join(nitroFuncDir, "farm-docs-content");
   const lastModifiedManifest = createFarmDocsLastModifiedManifest(docsContentDir, {
     fallback: "now",
   });
@@ -9421,6 +9613,28 @@ function resolvePackageJson(parentRequire: NodeJS.Require, packageName: string):
     } catch {
       // Try the next package metadata export.
     }
+  }
+
+  // Some modern packages, including Sharp 0.35+, do not export their
+  // package.json. Resolve their entry point and walk back to the package root
+  // so production staging keeps working without requiring a legacy export.
+  try {
+    let directory = path.dirname(parentRequire.resolve(packageName));
+    while (directory !== path.dirname(directory)) {
+      const candidate = path.join(directory, "package.json");
+      if (existsSync(candidate)) {
+        try {
+          const manifest = JSON.parse(readFileSync(candidate, "utf8")) as { name?: unknown };
+          if (manifest.name === packageName) return candidate;
+        } catch {
+          // Ignore unrelated or malformed metadata while walking upward.
+        }
+      }
+      if (path.basename(directory) === "node_modules") break;
+      directory = path.dirname(directory);
+    }
+  } catch {
+    // Keep the existing null result and caller diagnostics when resolution fails.
   }
   return null;
 }

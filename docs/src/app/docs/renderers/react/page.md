@@ -902,6 +902,12 @@ path. A failed runtime guard returns that keyed boundary to React before compile
 No option or component primitive is required. The report exposes the emitted binding count as
 `keyedMapLookupTargets`.
 
+When a key-directed identity, Set-membership, or Map-lookup refresh selects multiple binding
+updates, the runtime prepares every selected value and resolves every selected DOM target before
+committing the batch. A reader failure in a later selected row therefore leaves earlier rows
+untouched, while an invalid target uses the complete React fallback. Preparation retains the same
+changed-key set; it does not scan unaffected rows. Single-binding refreshes retain the direct path.
+
 #### Producer-side Set and Map deltas
 
 The Set-membership and Map-lookup paths above normally compare complete previous and next
@@ -2485,7 +2491,11 @@ They also evaluate and normalize every static binding value before the first DOM
 throwing reader reaches the nearest React error boundary without exposing an earlier sibling update.
 An ordinary surviving keyed row likewise evaluates and normalizes every binding in that row before
 updating its binding cache or the DOM. A later throwing reader therefore leaves that row untouched;
-rows with one binding retain the direct single-binding path.
+single-row refreshes with one binding retain the direct single-binding path. Stable multi-row
+refreshes whose row structure is unchanged additionally prepare every row's binding updates before
+committing any row, so a reader failure in a later row leaves earlier rows untouched.
+Single-removal refreshes with multiple static survivors use the same preflight before committing
+survivor bindings or detaching the removed row.
 Conditional branch bindings and keyed-row bindings inside nested keyed or mixed ranges are also
 read and prepared without DOM writes until every sibling range has passed adoption. A later invalid
 range therefore cannot partially patch an earlier branch or keyed row before React takes over. If

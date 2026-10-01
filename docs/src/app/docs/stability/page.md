@@ -27,6 +27,10 @@ Farm follows semantic versioning with the usual rules for `0.x` releases:
 
 The integration packages pin `@farm.js/core` to the exact version they were released with, so keep every package in the shared release group on the same version. `farm upgrade` does this for you.
 
+Independently versioned beta plugins must also be republished against a stable core before a
+stable release is promoted. The release publisher checks registry manifests and stops if a beta
+package still resolves a prerelease core, preventing two Farm runtimes from being installed.
+
 ## Packages
 
 **Stable, released together at the same version:**
@@ -42,7 +46,7 @@ An integration's stable surface is its Farm API: the factory, options, mounted r
 - Renderer packages: `@farm.js/react` (the React compiler and runtime package; the default React path lives in core), `@farm.js/preact`, `@farm.js/solid`, `@farm.js/vue`, `@farm.js/svelte`
 - Plugins: `@farm.js/analyzer`, `@farm.js/cache-redis`, `@farm.js/content`, `@farm.js/hints`, `@farm.js/msw`, `@farm.js/otel`, `@farm.js/partytown`, `@farm.js/preview-tunnel`, `@farm.js/pwa`, `@farm.js/scripts`, `@farm.js/search`, `@farm.js/stylex`, `@farm.js/sync`
 
-**Experimental packages:** `@farm.js/federation`, `@farm.js/wasm`, `@farm.js/webmcp`.
+**Experimental packages:** `@farm.js/federation`, `@farm.js/mcp`, `@farm.js/wasm`, `@farm.js/webmcp`.
 
 ## Renderers
 
@@ -58,13 +62,13 @@ Framework-level behavior (routing, APIs, actions, queries, middleware, deploymen
 
 ## Deployment targets
 
-| Target                       | Preset             | Level        | How it is verified                                                                     |
-| ---------------------------- | ------------------ | ------------ | -------------------------------------------------------------------------------------- |
-| `node`                       | `node-server`      | Stable       | Production browser suites in CI run against a built `node-server` output.              |
-| `vercel`                     | `vercel`           | Stable       | Build Output tests in CI; the Farm documentation site is deployed with it.             |
-| `cloudflare`                 | `cloudflare-pages` | Beta         | Build tests in CI; worker startup and streaming checked in `workerd`, not yet in CI.   |
-| `netlify`                    | `netlify`          | Beta         | Build tests in CI; no runtime check yet.                                               |
-| Direct Nitro `preset` values | any                | Pass-through | Farm passes the preset to Nitro. Output is not tested by Farm unless it appears above. |
+| Target                       | Preset             | Level        | How it is verified                                                                             |
+| ---------------------------- | ------------------ | ------------ | ---------------------------------------------------------------------------------------------- |
+| `node`                       | `node-server`      | Stable       | Production browser suites in CI run against a built `node-server` output.                      |
+| `vercel`                     | `vercel`           | Stable       | Build Output tests in CI; the Farm documentation site is deployed with it.                     |
+| `cloudflare`                 | `cloudflare-pages` | Stable       | Built output runs in `workerd` on every supported Node.js version in CI.                       |
+| `netlify`                    | `netlify`          | Stable       | Built output runs through Netlify's request pipeline on every supported Node.js version in CI. |
+| Direct Nitro `preset` values | any                | Pass-through | Farm passes the preset to Nitro. Output is not tested by Farm unless it appears above.         |
 
 `deploy.target` values get Farm's defaults and deploy commands. A raw Nitro `preset` such as `vercel-edge`, `netlify-edge`, `cloudflare-module`, `deno`, or `bun` is supported on a best-effort basis. See [Deployment](/docs/deployment).
 
@@ -79,13 +83,14 @@ These are off by default and outside the stability promise:
 | Partial Prerendering      | `experimental.ppr`, then opt routes in                              |
 | Isolated client hydration | `experimental.isolatedClientHydration: "analyze" \| "enabled"`      |
 | React compiler            | `react({ experimental: { compiler: true } })` from `@farm.js/react` |
+| API route MCP server      | `apiMcp()` from `@farm.js/mcp`                                      |
 | WebMCP browser tools      | `@farm.js/webmcp`                                                   |
 | Module federation         | `@farm.js/federation`                                               |
 | WebAssembly components    | `@farm.js/wasm`                                                     |
 
 ## Known limits in 0.1
 
-- **Strict script Content Security Policy.** Farm's inline hydration and theme scripts carry no nonce, so `script-src` must allow `'unsafe-inline'` without a nonce, hash, or `'strict-dynamic'`. See [Content Security Policy](/docs/configuration#content-security-policy). Nonce support is tracked in [#1275](https://github.com/farming-labs/farm.js/issues/1275).
+- **Runtime-only docs features on edge.** Farm can precompile the built-in renderer and external adapters that publish an edge compiler, but adapter features that require live server callbacks or mutable sessions still need a Node target. The official adapter reports the exact unsupported features during the build.
 - **Node.js 22.13 or newer** is required for development and for Node deployment targets.
 
 ## Reporting problems
