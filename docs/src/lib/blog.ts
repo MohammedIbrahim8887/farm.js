@@ -28,6 +28,5 @@ export const launchSections = [
   ["built-with-farm-viby", "Built with Farm: Viby"],
   ["deploy-where-you-already-are", "Deployment"],
   ["how-we-earned-stable", "Earning stable"],
-  ["what-is-not-there-yet", "Current limits"],
   ["try-it", "Try it"],
 ] as const;

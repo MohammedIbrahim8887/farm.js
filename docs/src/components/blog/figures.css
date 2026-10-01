@@ -43,7 +43,7 @@
     opacity 200ms;
 }
 .bf-panel[data-state="hot"] {
-  border-color: #ededed;
+  border-color: rgb(255 255 255 / 0.28);
 }
 .bf-panel[data-state="dim"] {
   opacity: 0.38;
@@ -293,7 +293,7 @@
   color: #cfcfcf;
 }
 .bf-card.bf-hot {
-  border-color: #ededed;
+  border-color: rgb(255 255 255 / 0.28);
 }
 .bf-ph {
   height: 3.4em;

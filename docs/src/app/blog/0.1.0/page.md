@@ -47,11 +47,7 @@ Small browser enhancements do not need a hydrated component tree. An optional [`
 
 ## Five renderers, one framework
 
-React is the default. Preact, Solid, Vue, and Svelte use the same routing, APIs, middleware, integrations, and deployment. You can pick a renderer when you create an app:
-
-```bash
-npx @farm.js/create-app@latest my-app --template basic --renderer vue
-```
+React is the default. Preact, Solid, Vue, and Svelte use the same routing, APIs, middleware, integrations, and deployment. Choose one when you create an app with the CLI's `--renderer` option.
 
 The other four are beta in 0.1, and a test-checked [capability matrix](https://farmjs.dev/docs/renderers) shows exactly what each one supports, including streaming per deployment target. Shared routing does not mean identical rendering features: Svelte currently buffers server rendering rather than streaming it. Check the matrix before choosing an adapter for a specific runtime.
 
@@ -61,14 +57,7 @@ The other four are beta in 0.1, and a test-checked [capability matrix](https://f
 
 Integrations connect a service to the app: its configuration, routes, webhooks, typed callers, and lifecycle. You choose the provider and the name it has inside your app.
 
-The CLI has **15 provider scaffolds**. List the choices, then add the ones you need:
-
-```bash
-farm add integration --list
-farm add integration stripe
-farm add integration resend
-farm add integration jobs-trigger
-```
+The CLI has **15 provider scaffolds**. Run `farm add integration --list` to see the choices, then add the ones you need. The [integrations guide](https://farmjs.dev/docs/integrations) covers setup for each provider.
 
 <BlogFigure kind="integration" caption="One command writes the integration, registers it, and lists the environment it needs" />
 
@@ -87,10 +76,6 @@ Farm's built-in auth, UI registries, ORM support, and integration-authoring util
 ### Bring your SDK, keep typed callers
 
 Your app can own the provider SDK. Configure the real Stripe client yourself, then pass that instance to Farm.js. You keep control of SDK options such as retries; Farm adds the integration's routes, webhooks, and typed callers around it.
-
-```bash
-pnpm add @farm.js/stripe stripe
-```
 
 ```ts
 // src/lib/integrations.ts — server-only
@@ -120,33 +105,9 @@ export type AppIntegrations = typeof integrations;
 
 `stripeClient` is the vendor's `Stripe` object, not a second Farm wrapper. The adapter uses the supplied `instance` instead of constructing another SDK client. Set your secret key and an existing Stripe price ID on the server; set `STRIPE_WEBHOOK_SECRET` to verify incoming webhook events. The SDK instance and credentials never belong in browser code.
 
-```ts
-// farm.config.ts
-import { defineConfig } from "@farm.js/core";
-import { integrations } from "./src/lib/integrations";
+Register the integration in `farm.config.ts`, then use typed callers to reach it. `billing` is the name you chose, not a hard-coded service name. The [caller guide](https://farmjs.dev/docs/api-client#integration-callers) covers the shared `createApiClients` setup and integration-only callers. Client modules import the registry's **type**, never its runtime value or credentials.
 
-export default defineConfig({ integrations });
-```
-
-An integration-only caller imports the registry's **type**, never its runtime value or credentials:
-
-```ts
-// src/lib/api.ts
-import { createIntegrations } from "@farm.js/core/client";
-import type { AppIntegrations } from "./integrations";
-
-export const { api, apiClient } = createIntegrations<AppIntegrations>();
-
-// In browser code: read the public product catalog.
-// Handle both data and error in the calling UI.
-export async function loadProducts() {
-  return apiClient.billing.products.get();
-}
-```
-
-`billing` is the key you chose, not a hard-coded service name. If your app also has typed API routes, use the [shared `createApiClients` setup](https://farmjs.dev/docs/api-client#integration-callers): it exposes integrations under `apiClient.integrations.billing` alongside your route callers. You do not need both factories.
-
-This example reads a catalog. Before enabling customer checkout or portal flows, connect your session and billing-owner checks using the [Stripe guide](https://farmjs.dev/docs/integrations/stripe). The application-owned SDK does not bypass those checks. For hosted content, the [Sanity guide](https://farmjs.dev/docs/integrations/sanity) covers typed queries, images, and webhook invalidation.
+The [Stripe guide](https://farmjs.dev/docs/integrations/stripe) covers installation, registration, and the session and billing-owner checks required for checkout. An app-owned SDK does not bypass those checks. For hosted content, the [Sanity guide](https://farmjs.dev/docs/integrations/sanity) covers typed queries, images, and webhook invalidation.
 
 Integrations can also scaffold working screens through a shadcn-style UI registry, and schema-backed integrations can share your relational models through [@farming-labs/orm](https://orm.farming-labs.dev).
 
@@ -159,16 +120,6 @@ This is not a closed catalog. Use [`defineIntegration`](https://farmjs.dev/docs/
 **DevTools** ships in every new app. Open it from the button in the corner or with `Cmd + Shift + .` on macOS (`Ctrl + Shift + .` on Windows and Linux) to browse your routes and their runtime settings, inspect configured integrations, read runtime diagnostics, and compare your source with the JavaScript Vite actually served.
 
 It is development-only: the plugin removes its UI, launcher, and inspection endpoints from production output. Snapshots show environment key names, not their values. Source code is still sensitive, so keep development servers on a trusted network. The [DevTools guide](https://farmjs.dev/docs/plugins/devtools) covers those boundaries.
-
-```ts
-import { defineConfig } from "@farm.js/core";
-import { devtools } from "@farm.js/devtools";
-import { hints } from "@farm.js/hints";
-
-export default defineConfig({
-  plugins: [devtools(), hints()],
-});
-```
 
 There are **15 documented official plugins** in this release snapshot, including DevTools. The other 14 are:
 
@@ -192,58 +143,9 @@ Plugins change how the framework builds, renders, or handles requests; integrati
 
 **`@farm.js/content`** gives blogs, changelogs, and documentation a typed publishing pipeline without a separate content configuration file. Markdown and MDX frontmatter—or complete JSON and YAML documents—go through your schema before the app uses them. It is a content plugin, not a hosted CMS, and remains independently versioned in beta.
 
-```bash
-pnpm add @farm.js/content zod
-```
+Define collections in `farm.config.ts`, validate metadata with Zod or another Standard Schema validator, and read them from server code with `getCollection()`. Farm generates the types, including computed fields such as reading time. Invalid content fails validation with a useful error.
 
-Define a collection in `farm.config.ts`. This example validates post metadata, manages relative images and file links in the Markdown body, and computes a reading time:
-
-```ts
-// farm.config.ts — add content() to your existing plugins
-import { collection, content, files } from "@farm.js/content";
-import { defineConfig } from "@farm.js/core";
-import { z } from "zod";
-
-export default defineConfig({
-  plugins: [
-    content({
-      collections: {
-        posts: collection({
-          source: files("content/posts/**/*.{md,mdx}"),
-          schema: z.object({
-            title: z.string().min(1),
-            publishedAt: z.coerce.date(),
-            draft: z.boolean().default(false),
-          }),
-          assets: true,
-          transform: ({ data, words }) => ({
-            ...data,
-            readingMinutes: Math.max(1, Math.ceil(words / 220)),
-          }),
-        }),
-      },
-    }),
-  ],
-});
-```
-
-Write posts under `content/posts/` with `title` and `publishedAt` in their frontmatter. Farm generates the collection types, including transformed fields such as `readingMinutes`. Zod is one option; other Standard Schema validators work too.
-
-Read the collection from a server module, API route, or Server Component:
-
-```ts
-// src/lib/posts.ts — server-only
-import { getCollection } from "@farm.js/content/server";
-
-export async function getPublishedPosts() {
-  return (await getCollection("posts"))
-    .filter((post) => !post.data.draft)
-    .sort((a, b) => b.data.publishedAt.getTime() - a.data.publishedAt.getTime())
-    .map(({ id, data }) => ({ id, ...data }));
-}
-```
-
-Invalid content fails validation with a useful error. Local edits are watched in development; production serves a validated, bundled snapshot. Entries keep their Markdown body separate from typed metadata, so your app controls rendering. Managed assets get content-hashed URLs, and images include dimensions.
+Local edits are watched in development; production serves a validated, bundled snapshot. Entries keep their Markdown body separate from typed metadata, so your app controls rendering. Managed assets get content-hashed URLs, and images include dimensions.
 
 Already have a CMS? A `remote()` source can feed the same pipeline from an API or database, including Sanity and Contentful. Production remains a build-time snapshot: publish changes through a rebuild, rather than expecting live CMS reads on every request. The [Content guide](https://farmjs.dev/docs/plugins/content) covers sources, typed assets, static routes, and optional write callbacks.
 
@@ -278,39 +180,9 @@ A `page.tsx` route is rendered and converted; a `page.md` route returns its sour
 
 ### Discover the app and its documentation
 
-Enable OpenAPI for typed API discovery, and the docs engine for machine-readable documentation. This is ordinary app configuration:
+Enable [OpenAPI](https://farmjs.dev/docs/openapi) to publish `/openapi.json` and a reference page from your typed routes. The [docs engine](https://farmjs.dev/docs/docs-engine) adds Markdown, an `llms.txt`-style index, an agent discovery spec, and generated agent/skill instructions. Both are ordinary app configuration; the guides cover their routes and options.
 
-```ts
-// farm.config.ts
-import { defineConfig } from "@farm.js/core";
-
-export default defineConfig({
-  openapi: {
-    enabled: true,
-    route: "/api-reference",
-    title: "My app API",
-    version: "0.1.0",
-  },
-  docs: {
-    adapter: false,
-    entry: "/docs",
-    llmsTxt: { enabled: true, siteTitle: "My app docs" },
-  },
-});
-```
-
-OpenAPI publishes `/openapi.json` and the configured reference page from route metadata and schemas. The built-in docs engine serves Markdown, an `llms.txt`-style index, full documentation text, an agent discovery spec, and generated agent/skill instructions:
-
-```bash
-curl https://your-app.com/openapi.json
-curl 'https://your-app.com/api/docs?format=llms'
-curl 'https://your-app.com/api/docs?format=llms-full'
-curl https://your-app.com/api/docs/agent/spec
-curl https://your-app.com/api/docs/agents.md
-curl https://your-app.com/api/docs/skill.md
-```
-
-These routes describe and expose documentation; they do **not** automatically create an MCP server or grant access to application data. The built-in docs runtime currently advertises docs MCP as disabled. Use the [docs engine](https://farmjs.dev/docs/docs-engine) and [OpenAPI](https://farmjs.dev/docs/openapi) guides for the exact configuration. Pages also get canonical and Open Graph defaults, with optional JSON-LD.
+Discovery describes what an app offers. It does **not** create an MCP server or grant access to application data. Pages also get canonical and Open Graph defaults, with optional JSON-LD.
 
 <span id="api-routes-as-mcp-tools" className="blog-heading-anchor" />
 
@@ -318,103 +190,29 @@ These routes describe and expose documentation; they do **not** automatically cr
 
 **Reuse an API route, define a tool without a route, or compose both.** Top-level `mcp` config brings them into one Streamable HTTP server with a shared authorization policy. Endpoint-backed tools keep the validation, middleware, and handler your app already uses. Standalone tools use `defineTool()` for operations that do not need their own HTTP endpoint.
 
-**Source preview:** These examples use [MCP composition and shared authorization from #1608](https://github.com/farming-labs/farm.js/pull/1608), with [validated tool results from #1611](https://github.com/farming-labs/farm.js/pull/1611). They require the optional `@farm.js/mcp` runtime, whose npm package is not published yet as of September 30, 2026. Start with the repository's [runnable example](https://github.com/farming-labs/farm.js/tree/main/examples/api-mcp). MCP remains experimental; these options are not available in older beta releases.
+**Source preview:** This includes [MCP composition and shared authorization from #1608](https://github.com/farming-labs/farm.js/pull/1608), with [validated tool results from #1611](https://github.com/farming-labs/farm.js/pull/1611). It requires the optional `@farm.js/mcp` runtime, whose npm package is not published yet as of September 30, 2026. MCP remains experimental; start with the repository's [runnable example](https://github.com/farming-labs/farm.js/tree/main/examples/api-mcp).
 
 ### Keep the API route authoritative
 
-Here, `getSession(request)` verifies your app's credentials and returns a user and their scopes. `listProjects(userId, status)` queries your database, restricted to that user. These are application helpers you supply, not Farm.js APIs.
+The same route can serve your app and an MCP client. Its middleware still checks credentials, its schema still validates input, and its handler still limits data to the signed-in user. The session and database helpers in this illustration belong to the app, not Farm.js.
 
 <BlogFigure kind="mcp-code" caption="An MCP client calls the route: its middleware and handler run, and the projects come back" />
 
-An endpoint referenced from config needs an explicit path and method matching its mounted route. Farm resolves that reference by method and path; importing it does not create another HTTP route.
-
 ### Compose both in one server
 
-Import the endpoint into `mcp.tools`, then add a standalone search tool beside it. The app-owned `searchProjects` helper must restrict its database query to `userId`; pass `signal` through to cancellable work.
+Put endpoint references and standalone tools in one `mcp.tools` list. That list selects the whole catalog; it replaces automatic discovery rather than adding to it. Standalone tools do not need an HTTP route, and a server can contain only standalone tools. Enabling MCP never exposes every route automatically.
 
-```ts
-// farm.config.ts
-import { defineConfig } from "@farm.js/core";
-import { defineTool } from "@farm.js/mcp";
-import { z } from "zod";
-import { GET as listProjects } from "./src/app/api/projects/route";
-import { getSession } from "./src/lib/auth";
-import { searchProjects } from "./src/lib/projects";
-
-export default defineConfig({
-  mcp: {
-    name: "my-app",
-    tools: [
-      {
-        endpoint: listProjects,
-        name: "list_projects",
-        description: "List projects visible to the current user.",
-        readOnlyHint: true,
-      },
-      defineTool({
-        name: "search_projects",
-        description: "Search projects visible to the current user.",
-        inputSchema: z.object({ query: z.string().trim().min(1) }),
-        outputSchema: z.object({
-          projects: z.array(
-            z.object({
-              id: z.string(),
-              name: z.string(),
-              status: z.enum(["active", "planned"]),
-            }),
-          ),
-        }),
-        readOnlyHint: true,
-        destructiveHint: false,
-        execute: ({ query }, { authorization, signal }) =>
-          searchProjects({ query, userId: authorization.subject, signal }),
-      }),
-    ],
-    authorize: async ({ request, tools }) => {
-      const session = await getSession(request);
-      if (!session) return false;
-      return {
-        subject: session.user.id,
-        tools: tools
-          .filter(
-            (tool) =>
-              ["list_projects", "search_projects"].includes(tool.name) &&
-              session.scopes.includes("projects:read"),
-          )
-          .map((tool) => tool.name),
-      };
-    },
-  },
-});
-```
-
-The explicit `mcp.tools` list selects the whole catalog; it replaces automatic discovery rather than adding to it. A bare endpoint reference also works: `tools: [listProjects]` preserves its metadata or generates a name. Prefer route-owned declarations? Omit `mcp.tools` and add `mcp: true` or named metadata to the endpoints you want to expose. With `mcp: true`, `GET /api/projects` becomes `get_projects`. Enabling MCP never exposes every route automatically.
-
-Endpoint tools use the route's input shape: `list_projects` accepts `{ query: { status: "active" } }`, and other routes can accept `params` or a JSON `body`. Standalone tools receive their arguments directly: `search_projects` accepts `{ query: "farm" }`. No `/api/search_projects` route is created, and a server can consist entirely of standalone tools.
-
-Zod 4 works directly. Farm advertises the input schema and runs the original validator, including async refinements, defaults, and transforms, before execution. A standalone tool's `execute` receives typed, validated input plus the authorized principal, incoming `request`, and cancellation `signal`. Return JSON-serializable application data, not a `Response` or MCP protocol envelope.
+The [composition guide](https://farmjs.dev/docs/plugins/mcp#declare-tools-in-config) shows the complete configuration, endpoint references, and route-owned declarations. Keep the setup on the server; return JSON-compatible results rather than streaming responses.
 
 ### Typed results, too
 
-The optional `outputSchema` above checks the return value and tells MCP clients what a successful result looks like. It also types the handler's return value. Farm runs the original output validator once, including async refinements, defaults, and transforms, then sends the validated data in the existing `structuredContent: { result: data }` envelope. A standalone output-validation failure returns a tool error without exposing the validator's custom message; it does not undo work the handler already performed.
-
-For endpoint-backed tools, Farm reuses an `output` validator already declared on a `createRouteFactory()` route and advertises the corresponding result schema without running its transforms twice. No separate MCP output declaration is needed. Tools without an output schema keep their existing behavior. The [MCP guide](https://github.com/farming-labs/farm.js/blob/main/docs/src/app/docs/plugins/mcp/page.md#validate-tool-results) includes both patterns and their JSON Schema limits.
+Standalone tools can declare an `outputSchema` to type and validate their results. Endpoint-backed tools reuse an existing route output validator without running its transforms twice. The [result validation guide](https://farmjs.dev/docs/plugins/mcp#validate-tool-results) covers both patterns. Validation catches an invalid result; it does not undo work a handler already performed.
 
 ### One policy, per-tool permissions
 
-`authorize` receives the incoming `request`, the complete read-only `tools` catalog, and the resolved `server` identity (`name`, `version`, and `path`). Each catalog entry has a stable tool `name` and a `kind` of `"endpoint"` or `"standalone"`; endpoint entries also include their HTTP `method` and route `path`. For a single tool call, an optional `tool` field contains the requested name. Treat that name as untrusted; it is absent for discovery and batches.
+`authorize` receives the request, tool catalog, and server identity, so you can allow different tools for different users. The same allowlist controls discovery and execution: guessing a hidden tool name does not bypass it.
 
-- Return `false` to reject the request with HTTP 401.
-- Return `{ subject, tools: ["list_projects"] }` to allow only those named tools. The same allowlist controls discovery and execution: guessing a hidden name does not bypass it.
-- Return `tools: []` to allow the connection but no tools. Omit the returned `tools` field to allow every configured tool. Permissions are evaluated again for each request; invalid or unknown permission entries fail closed.
-
-Scopes and hints such as `readOnlyHint` are not permissions by themselves—the policy above explicitly maps scopes to allowed names. Endpoint middleware still protects direct API access and checks the forwarded credentials; Farm does not inject the MCP principal into the endpoint's context. Standalone tools receive that principal as `authorization`. Keep row-level and argument-dependent checks in your application code in either case.
-
-Point your MCP client's Streamable HTTP connection at **`https://your-app.com/api/mcp`**, with credentials in that client's secure settings. `getSession` must understand those credentials; a browser session cookie is not automatically available to a remote client. This config does not issue tokens or implement an OAuth authorization server. Tool arguments cannot override authorization or cookie headers.
-
-Invalid or duplicate tool names, unsupported schemas, and an empty configured tool set fail the build. Results must be JSON-compatible; binary, multipart, and streaming responses are not supported. Keep config, tool definitions, and provider SDKs server-only, and use shared storage—not module-local state—when both a route and a standalone tool access the same data.
-
-The [API MCP guide](https://github.com/farming-labs/farm.js/blob/main/docs/src/app/docs/plugins/mcp/page.md) covers composition, authentication, and read and write tools. Removing top-level `mcp` config—or setting it to `false`—removes the MCP endpoint and runtime from the app bundle. Your ordinary API routes keep working.
+Endpoint middleware still protects direct API access. Standalone tools receive the authorized principal, and your app remains responsible for row-level checks and sensitive actions. A tool's read-only hint is not a permission. Follow the [authorization guide](https://farmjs.dev/docs/plugins/mcp#authorize-individual-tools) for policy examples and [client setup](https://farmjs.dev/docs/plugins/mcp#connect-a-client) for credentials.
 
 <span id="browser-tools-with-webmcp" className="blog-heading-anchor" />
 
@@ -422,21 +220,11 @@ The [API MCP guide](https://github.com/farming-labs/farm.js/blob/main/docs/src/a
 
 **WebMCP is a different surface.** `@farm.js/webmcp` registers named tools in a supporting browser while your page is open. There is no remote `/api/mcp` server in this path. A tool can read page state or call an existing same-origin API with the user's browser session.
 
-Add the plugin to your existing configuration:
-
-```ts
-// farm.config.ts
-import { defineConfig } from "@farm.js/core";
-import { webmcp } from "@farm.js/webmcp";
-
-export default defineConfig({ plugins: [webmcp()] });
-```
-
-For the projects API above, a React component can own a tool and remove it when the route unmounts:
+A component owns the tool while it is mounted and removes it when the route unmounts:
 
 <BlogFigure kind="webmcp-code" caption="The component registers the tool; the browser's agent calls it and the page shows active projects" />
 
-Mount `ProjectsAgentTools` in the route that owns this capability. Registration returns cleanup; Farm's browser adapter handles navigation and HMR. Other renderers use the same registration function with their own mount/disposal lifecycle. The schema describes inputs to the agent, while `validate` checks them before execution. Server authorization is still required.
+Registration returns cleanup; Farm's browser adapter handles navigation and HMR. The schema describes inputs to the agent, while validation checks them before execution. Server authorization is still required.
 
 WebMCP remains an experimental [Community Group draft](https://webmachinelearning.github.io/webmcp/), not a W3C Standard. Unsupported browsers keep running the app normally without the tool surface. Check [Chrome's current setup instructions](https://developer.chrome.com/docs/ai/webmcp) for local testing or the origin trial, and the [Farm WebMCP guide](https://farmjs.dev/docs/plugins/webmcp) for lifecycle and security details. Tools that spend money, publish, or delete data still need the application's authorization and confirmation flow.
 
@@ -444,16 +232,7 @@ WebMCP remains an experimental [Community Group draft](https://webmachinelearnin
 
 ## Bring your agent framework
 
-**Agents can live inside your app.** A chat endpoint is one command, `farm add integration ai`, which writes:
-
-```ts
-import { aiChatRoute } from "@farm.js/ai";
-
-export const POST = aiChatRoute({
-  model: "openai/gpt-4o-mini",
-  system: "You are a helpful assistant.",
-});
-```
+**Agents can live inside your app.** Start a chat endpoint with `farm add integration ai`; the [CLI guide](https://farmjs.dev/docs/cli#add-integrations) covers adding integrations to an existing app.
 
 **Bring the agent framework you already use.** You do not need to rewrite your agent around a Farm.js-specific API. The Eve and Cloudflare Agents integrations connect their existing runtimes to your app, while you keep their tools, state, and client SDKs.
 
@@ -475,9 +254,9 @@ Same-origin routing is not authentication. Protect agent HTTP and WebSocket entr
 
 ## Agent infrastructure
 
-**Coming next.** We're working on infrastructure to deploy agents and MCP servers, connect your tools, and observe runs from your Farm.js codebase. We also want to make websites easier for agents to discover and interact with through readable content and approved tools. It is not part of v0.1.0—[explore agent infrastructure](/agents) and join the waitlist for early access.
+**Coming next.** We're working on infrastructure to deploy agents and MCP servers, connect your tools, and observe runs from your Farm.js codebase. We also want to make websites easier for agents to discover and interact with through readable content and approved tools. It is not part of v0.1.0.
 
-<AgentWaitlist />
+[Explore agent infrastructure](/agents)
 
 <span id="built-with-farm-viby" className="blog-heading-anchor" />
 
@@ -512,15 +291,6 @@ Every release now installs representative integrations and a freshly generated a
 We also ran deployment output in real runtimes instead of trusting build logs. Booting Cloudflare output in `workerd`, Cloudflare's runtime, turned up two bugs no unit test could have caught: React apps on the `cloudflare-module` preset could not start, and a fix meant to give edge targets React's Web streaming build was being silently dropped from the build config. Both are fixed and covered by build-level tests.
 
 The rest was unglamorous and necessary: malformed request bodies that returned 500 instead of 400, a storage dependency that let fresh installs close a database the app still owned, and a Content Security Policy warning that stayed quiet for policies that break hydration.
-
-<span id="what-is-not-there-yet" className="blog-heading-anchor" />
-
-## What still has limits
-
-- **Fully static strict script CSP.** Dynamic HTML supports per-request nonces through `security.csp.nonce`. Static pages do not yet emit per-page script hashes; strict script CSP needs a request runtime.
-- **External docs adapters on the edge.** The built-in docs renderer is precompiled for edge targets. An external adapter still needs a Node target until it declares an edge runtime contract.
-- **MCP and WebMCP remain experimental.** MCP composes selected API endpoints and standalone tools with JSON-compatible results, not arbitrary streaming handlers. Browser WebMCP depends on a supporting browser. Neither replaces application authorization.
-- **Renderer and runtime differences remain real.** Consult the capability matrix before moving an app between renderers or using a direct Nitro preset. A shared API is not a promise of identical streaming support everywhere.
 
 <span id="try-it" className="blog-heading-anchor" />
 

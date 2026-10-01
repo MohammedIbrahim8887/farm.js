@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
+import postcss from "postcss";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { FIGURES, type FigureKind } from "./figure-scripts";
@@ -7,6 +9,19 @@ import { BlogFigure } from "./figures";
 const kinds = Object.keys(FIGURES) as FigureKind[];
 
 describe("launch post figures", () => {
+  it("keeps active illustration borders subtle instead of flashing white", () => {
+    const css = postcss.parse(readFileSync(new URL("./figures.css", import.meta.url), "utf8"));
+    for (const selector of ['.bf-panel[data-state="hot"]', ".bf-card.bf-hot"]) {
+      const colors: string[] = [];
+      css.walkRules(selector, (rule) => {
+        rule.walkDecls("border-color", (declaration) => {
+          colors.push(declaration.value);
+        });
+      });
+      expect(colors).toEqual(["rgb(255 255 255 / 0.28)"]);
+    }
+  });
+
   it.each(kinds)("renders the %s figure's final frame on the server", (kind) => {
     const html = renderToStaticMarkup(<BlogFigure kind={kind} caption="Caption" />);
     expect(html).toContain(`data-figure="${kind}"`);

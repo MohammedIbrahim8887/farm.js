@@ -54,6 +54,51 @@
 }
 .agent-waitlist[aria-busy="true"] button {
   cursor: wait;
+  opacity: 1;
+}
+.agent-waitlist-button-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* Reserve the longest label so pending and success never resize the button. */
+  min-width: 18ch;
+  white-space: nowrap;
+}
+.agent-waitlist-loader {
+  display: none;
+  flex-shrink: 0;
+  grid-template-columns: repeat(3, 4px);
+  gap: 1.5px;
+}
+.agent-waitlist-loader > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.15;
+}
+.agent-waitlist[aria-busy="true"] .agent-waitlist-loader {
+  display: grid;
+}
+.agent-waitlist[aria-busy="true"] .agent-waitlist-loader > span {
+  animation: agent-waitlist-pixel-on 650ms ease-in-out infinite;
+}
+@keyframes agent-waitlist-pixel-on {
+  0%,
+  65%,
+  100% {
+    opacity: 0.15;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-waitlist[aria-busy="true"] .agent-waitlist-loader > span {
+    animation: none;
+    opacity: 0.5;
+  }
 }
 .agent-waitlist .agent-waitlist-note,
 .agent-waitlist .agent-waitlist-status,

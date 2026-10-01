@@ -3,9 +3,10 @@ export function enhanceAgentWaitlist(root: HTMLElement) {
   const form = root.querySelector<HTMLFormElement>("[data-agent-waitlist]");
   const email = form?.querySelector<HTMLInputElement>('input[name="email"]');
   const button = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+  const label = button?.querySelector<HTMLElement>("[data-agent-waitlist-label]");
   const status = form?.querySelector<HTMLElement>('[role="status"]');
   const fallback = root.querySelector<HTMLElement>("[data-agent-waitlist-unavailable]");
-  if (!form || !email || !button || !status) return () => {};
+  if (!form || !email || !button || !label || !status) return () => {};
 
   const lifecycle = new AbortController();
   let request: AbortController | undefined;
@@ -22,7 +23,7 @@ export function enhanceAgentWaitlist(root: HTMLElement) {
       pending = true;
       button.disabled = true;
       email.readOnly = true;
-      button.textContent = "Joining…";
+      label.textContent = "Joining…";
       status.textContent = "";
       form.setAttribute("aria-busy", "true");
       request = new AbortController();
@@ -64,7 +65,7 @@ export function enhanceAgentWaitlist(root: HTMLElement) {
           form.removeAttribute("aria-busy");
           button.disabled = joined;
           email.readOnly = joined;
-          button.textContent = joined ? "You're on the list" : "Join the waitlist";
+          label.textContent = joined ? "You're on the list" : "Join the waitlist";
         }
       }
     },

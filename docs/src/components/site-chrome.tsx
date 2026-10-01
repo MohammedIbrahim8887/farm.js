@@ -1,4 +1,3 @@
-import { FARM_VERSION } from "@farm.js/core/version";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -17,6 +16,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import githubIconUrl from "simple-icons/icons/github.svg?url";
 import farmingLabsLogoUrl from "../assets/farming-labs-logo-dark.svg?url";
+import { launchPost } from "../lib/blog";
 
 const navItems = [
   {
@@ -144,16 +144,12 @@ function BrandLockup() {
 export function AnnouncementBar() {
   return (
     <a
-      aria-label={`Farm.js ${FARM_VERSION} is open source${FARM_VERSION.includes("-") ? " and in beta" : ""}. View on GitHub.`}
+      aria-label="Farm.js v0.1.0 is released. Read the announcement."
       className="farm-announcement flex h-5 items-center justify-center gap-2 border-b border-white/12 px-4 font-mono text-[10px] font-normal uppercase tracking-normal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
-      href="https://github.com/farming-labs/farm.js"
+      href={launchPost.href}
     >
-      <GithubIcon className="size-3 opacity-55" />
-      <span className="text-white/52">Open source</span>
-      <span aria-hidden className="text-white/24">
-        /
-      </span>
-      <span className="text-white/76">Farm.js {FARM_VERSION}</span>
+      <span className="text-white/76">Farm.js v0.1.0 is released</span>
+      <span className="text-white/52">Read the announcement</span>
     </a>
   );
 }

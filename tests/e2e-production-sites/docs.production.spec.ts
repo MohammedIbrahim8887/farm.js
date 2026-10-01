@@ -118,7 +118,13 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   );
   const contents = page.locator(".blog-contents");
   await expect(contents).toHaveCSS("width", "280px");
-  await expect(contents.getByRole("navigation").getByRole("link")).toHaveCount(17);
+  await expect(contents.getByRole("navigation").getByRole("link")).toHaveCount(16);
+  await expect(contents.getByRole("link", { name: "Current limits", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "What still has limits" })).toHaveCount(0);
+  await expect(page.locator('input[type="email"], [data-agent-waitlist-root]')).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Explore agent infrastructure", exact: true }),
+  ).toHaveAttribute("href", "/agents");
   for (const href of await contents
     .getByRole("navigation")
     .getByRole("link")
@@ -194,23 +200,17 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
     "18 provider integration options, 15 official plugins, composable MCP tools, and five renderers",
     "18 provider options across 17 dedicated packages",
     "15 provider scaffolds",
-    "apiClient.billing.products.get()",
     "const stripeClient = new Stripe(secretKey,",
     "instance: stripeClient",
     "maxNetworkRetries: 2",
-    "@farm.js/content/server",
-    'getCollection("posts")',
-    'source: files("content/posts/**/*.{md,mdx}")',
+    "getCollection()",
     "Production remains a build-time snapshot",
     "Top-level mcp config",
-    "mcp: true",
     "whose npm package is not published yet",
     "registerWebMCPTool(listProjects)",
     "validate: input",
-    "docs MCP as disabled",
-    "/api/docs/agent/spec",
-    "/api/docs/skill.md",
-    "security.csp.nonce",
+    "agent discovery spec",
+    "generated agent/skill instructions",
   ]) {
     await expect(prose).toContainText(detail);
   }
@@ -266,7 +266,7 @@ test("blog uses Farm.js branding, lighter reading weights, and complete launch g
   for (const path of guides) await access(`docs/src/app${path}/page.md`);
 });
 
-test("blog documents composed MCP tools and shared authorization in HTML and Markdown", async ({
+test("blog summarizes MCP composition and links setup and policy details to the docs", async ({
   page,
 }) => {
   await page.goto("/blog");
@@ -289,24 +289,27 @@ test("blog documents composed MCP tools and shared authorization in HTML and Mar
   const config = prose.locator(".blog-code-block").filter({
     hasText: "authorize: async ({ request, tools })",
   });
-  await expect(config).toHaveCount(1);
-  await expect(config).toContainText(/mcp:\s*\{\s*name: "my-app"/);
-  await expect(config).toContainText("endpoint: listProjects");
-  await expect(config).toContainText("defineTool({");
-  await expect(config).toContainText('name: "search_projects"');
-  await expect(config).toContainText("outputSchema: z.object({");
-  await expect(config).toContainText("userId: authorization.subject");
-  await expect(config).not.toContainText("plugins:");
+  await expect(config).toHaveCount(0);
+  for (const [name, anchor] of [
+    ["composition guide", "declare-tools-in-config"],
+    ["result validation guide", "validate-tool-results"],
+    ["authorization guide", "authorize-individual-tools"],
+  ]) {
+    await expect(prose.getByRole("link", { name, exact: true })).toHaveAttribute(
+      "href",
+      `https://farmjs.dev/docs/plugins/mcp#${anchor}`,
+    );
+  }
+  await expect(prose).toContainText("same allowlist controls discovery and execution");
   await expect(prose).toContainText("Enabling MCP never exposes every route automatically");
   await expect(prose).toContainText("it replaces automatic discovery rather than adding to it");
   const response = await page.request.get("/blog/0.1.0.md");
   expect(response.ok()).toBe(true);
   const markdown = await response.text();
-  expect(markdown).toMatch(/mcp: \{\s+name: "my-app"/);
-  expect(markdown).toContain("endpoint: listProjects");
-  expect(markdown).toContain("defineTool({");
-  expect(markdown).toContain("authorize: async ({ request, tools })");
-  expect(markdown).toContain("outputSchema: z.object({");
+  expect(markdown).toContain("https://farmjs.dev/docs/plugins/mcp#declare-tools-in-config");
+  expect(markdown).toContain("https://farmjs.dev/docs/plugins/mcp#validate-tool-results");
+  expect(markdown).toContain("https://farmjs.dev/docs/plugins/mcp#authorize-individual-tools");
+  expect(markdown).not.toContain("authorize: async ({ request, tools })");
   expect(markdown).not.toContain("apiMcp(");
   expect(markdown).not.toContain('"GET /api/projects"');
 });
@@ -357,7 +360,7 @@ test("blog enhancements survive client navigation, re-entry, and back/forward wi
   async function checkArticle() {
     await expect(page).toHaveURL(/\/blog\/0\.1\.0$/);
     await checkArtwork();
-    await expect(page.locator(".blog-code-copy:visible")).toHaveCount(17);
+    await expect(page.locator(".blog-code-copy:visible")).toHaveCount(3);
     const nav = page.locator(".blog-contents-links").first();
     const link = nav.getByRole("link", { name: "Built with Farm: Viby" });
     await link.click();
@@ -389,7 +392,7 @@ test("blog enhancements survive client navigation, re-entry, and back/forward wi
   await checkArticle();
   await page.getByRole("link", { name: "All posts", exact: true }).click();
   await page.goBack();
-  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(17);
+  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(3);
   await expect(page.locator(".blog-contents-links").first()).toHaveAttribute(
     "data-highlight-ready",
     "true",
@@ -482,7 +485,7 @@ test("every code block copies exact source and exposes recoverable clipboard fai
   await page.goto("/blog");
   await page.locator(".blog-read-link").click();
   const blocks = page.locator(".blog-code-block");
-  await expect(blocks).toHaveCount(17);
+  await expect(blocks).toHaveCount(3);
   for (const block of await blocks.all()) {
     const text = await block.locator("pre > code").textContent();
     const button = block.getByRole("button");
@@ -519,7 +522,7 @@ test("blog syntax highlighting is server-rendered and preserves every fenced cod
 }) => {
   const source = await readFile("docs/src/app/blog/0.1.0/page.md", "utf8");
   const fences = Array.from(source.matchAll(/^```(\w+)\n([\s\S]*?)^```/gm));
-  expect(fences).toHaveLength(17);
+  expect(fences).toHaveLength(3);
   const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
   try {
     const page = await context.newPage();
@@ -628,12 +631,18 @@ test("agent waitlist validates input and confirms a saved signup after client na
   });
   await page.goto("/blog");
   await page.locator(".blog-read-link").click();
+  await expect(page.locator(".blog-prose")).toContainText("It is not part of v0.1.0");
+  await expect(page.locator('input[type="email"]')).toHaveCount(0);
+  await page.getByRole("link", { name: "Explore agent infrastructure", exact: true }).click();
+  await expect(page).toHaveURL(/\/agents$/);
   const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
   const email = form.getByLabel("Email address");
   const submit = form.getByRole("button");
   await expect(form).toBeVisible();
+  const loader = submit.locator(".agent-waitlist-loader");
+  await expect(loader).toBeHidden();
+  const idleButtonSize = await submit.boundingBox();
   await expect(page.locator("[data-agent-waitlist-unavailable]")).toBeHidden();
-  await expect(page.locator(".blog-prose")).toContainText("It is not part of v0.1.0");
   await submit.click();
   await expect(email).toBeFocused();
   expect(await email.evaluate((input: HTMLInputElement) => input.validity.valueMissing)).toBe(true);
@@ -650,13 +659,23 @@ test("agent waitlist validates input and confirms a saved signup after client na
   await expect(form).toHaveAttribute("aria-busy", "true");
   await expect(submit).toBeDisabled();
   await expect(submit).toHaveText("Joining…");
+  await expect(loader).toBeVisible();
+  await expect(loader.locator("span")).toHaveCount(9);
+  await expect(loader.locator("span").first()).toHaveCSS(
+    "animation-name",
+    "agent-waitlist-pixel-on",
+  );
+  expect((await submit.boundingBox())!.width).toBeCloseTo(idleButtonSize!.width, 1);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(loader.locator("span").first()).toHaveCSS("animation-name", "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await expect(email).toHaveAttribute("readonly", "");
   await expect
     .poll(() => submissions)
     .toEqual([
       {
         email: "reader@example.com",
-        description: "Agent infrastructure early access — Farm.js v0.1.0 blog",
+        description: "Agent infrastructure early access — Farm.js agents page",
       },
     ]);
   finishResponse();
@@ -666,9 +685,12 @@ test("agent waitlist validates input and confirms a saved signup after client na
   await expect(submit).toHaveText("You're on the list");
   await expect(submit).toBeDisabled();
   await expect(form).not.toHaveAttribute("aria-busy");
+  await expect(loader).toBeHidden();
+  expect((await submit.boundingBox())!.width).toBeCloseTo(idleButtonSize!.width, 1);
 
-  await page.getByRole("link", { name: "All posts", exact: true }).click();
-  await page.locator(".blog-read-link").click();
+  await page.getByRole("link", { name: "Read the announcement", exact: true }).click();
+  await expect(form).toHaveCount(0);
+  await page.getByRole("link", { name: "Explore agent infrastructure", exact: true }).click();
   await expect(submit).toBeEnabled();
   await email.fill("returning-reader@example.com");
   await submit.click();
@@ -690,7 +712,7 @@ test("agent waitlist keeps failures recoverable and fits narrow screens", async 
       json: result === "success" ? { ok: true, id: "browser-test-only" } : { ok: false },
     });
   });
-  await page.goto("/blog/0.1.0");
+  await page.goto("/agents");
   const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
   const email = form.getByLabel("Email address");
   const submit = form.getByRole("button");
@@ -739,7 +761,7 @@ test("agents page connects the blog, planned capabilities, Markdown, and shared 
   await page.evaluate(() => {
     (window as Window & { __agentsNavigation?: boolean }).__agentsNavigation = true;
   });
-  await page.getByRole("link", { name: "explore agent infrastructure", exact: true }).click();
+  await page.getByRole("link", { name: "Explore agent infrastructure", exact: true }).click();
   await expect(page).toHaveURL(/\/agents$/);
   expect(
     await page.evaluate(
@@ -793,8 +815,10 @@ test("agents page connects the blog, planned capabilities, Markdown, and shared 
   ]);
   await page.getByRole("link", { name: "Read the announcement", exact: true }).click();
   await expect(page).toHaveURL(/\/blog\/0\.1\.0#agent-infrastructure$/);
-  await expect(form).toBeVisible();
-  await expect(form.getByRole("button")).toBeEnabled();
+  await expect(form).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Explore agent infrastructure", exact: true }),
+  ).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/\/agents$/);
   await expect(form).toBeVisible();
@@ -843,12 +867,12 @@ test("agents ASCII motion starts on navigation, pauses offscreen, and respects r
 test("blog and agents omit removed illustrations after navigation", async ({ page }) => {
   await page.goto("/blog/0.1.0");
   await expect(page.locator("[data-story], .farm-story, .agents-illustration")).toHaveCount(0);
-  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(17);
+  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(3);
   await expect(
     page.getByRole("heading", { name: "Typed content collections", exact: true }),
   ).toHaveCount(1);
   await expect(page.locator(".blog-prose")).toContainText("instance: stripeClient");
-  await page.getByRole("link", { name: "explore agent infrastructure", exact: true }).click();
+  await page.getByRole("link", { name: "Explore agent infrastructure", exact: true }).click();
   await expect(page).toHaveURL(/\/agents$/);
   await expect(page.locator("[data-story], .farm-story, .agents-illustration")).toHaveCount(0);
   await expect(page.getByRole("form", { name: "Agent infrastructure waitlist" })).toHaveCount(1);
@@ -863,7 +887,7 @@ test("blog and agents omit removed illustrations after navigation", async ({ pag
   await page.goBack();
   await expect(page).toHaveURL(/\/blog\/0\.1\.0(?:#.*)?$/);
   await expect(page.locator("[data-story], .farm-story")).toHaveCount(0);
-  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(17);
+  await expect(page.locator(".blog-code-copy:visible")).toHaveCount(3);
 });
 
 test("agent hero stays typographic", async ({ page }) => {
@@ -901,9 +925,9 @@ test("blog without illustrations remains readable on mobile and without JavaScri
         await expect(
           page.getByRole("heading", { name: "Bring your SDK, keep typed callers", exact: true }),
         ).toHaveCount(1);
-        await expect(page.locator(".blog-code-block")).toHaveCount(17);
+        await expect(page.locator(".blog-code-block")).toHaveCount(3);
         await expect(page.locator(".blog-code-copy:visible")).toHaveCount(
-          javaScriptEnabled ? 17 : 0,
+          javaScriptEnabled ? 3 : 0,
         );
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
           true,
@@ -1027,10 +1051,10 @@ for (const width of [320, 390, 768]) {
         "44px",
       );
       await expect(page.locator(".blog-code-copy:visible")).toHaveCount(0);
-      await expect(page.locator("[data-agent-waitlist]")).toBeHidden();
-      await expect(page.locator("[data-agent-waitlist-unavailable]")).toHaveText(
-        "Enable JavaScript to join the agent infrastructure waitlist.",
-      );
+      await expect(page.locator("[data-agent-waitlist-root]")).toHaveCount(0);
+      await expect(
+        page.getByRole("link", { name: "Explore agent infrastructure", exact: true }),
+      ).toHaveAttribute("href", "/agents");
       await page.locator(".blog-mobile-contents summary").click();
       await page
         .locator(".blog-mobile-contents")

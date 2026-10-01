@@ -9,7 +9,8 @@
     "preview": "farm preview",
     "test": "vitest run",
     "prisma:generate": "DATABASE_URL=${DATABASE_URL:-postgresql://user:password@localhost:5432/farmjs} node ../scripts/run-prisma-generate.mjs",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:waitlist": "pnpm run prisma:generate && node --env-file-if-exists=.env.local scripts/setup-waitlist.mjs"
   },
   "dependencies": {
     "@databuddy/sdk": "2.6.0",
