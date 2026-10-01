@@ -5,6 +5,8 @@ import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import bash from "shiki/langs/bash.mjs";
 import typescript from "shiki/langs/typescript.mjs";
 import vesper from "shiki/themes/vesper.mjs";
+import { AgentWaitlist } from "./components/agents/waitlist";
+import { BlogFigure } from "./components/blog/figures";
 
 // Farm loads this map only on the server for source-authored Markdown routes.
 // Load the blog's grammars once, with the same dark palette as the docs.
@@ -81,4 +83,4 @@ function Pre({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
   );
 }
 
-export const components = { code: Code, pre: Pre };
+export const components = { code: Code, pre: Pre, AgentWaitlist, BlogFigure };

@@ -1,0 +1,1075 @@
+// Scripted figures for the launch post. They illustrate what happens (services, apps, clients, and
+// the requests between them) rather than repeating the code blocks next to them. Each script is a
+// pure function of time: the server renders its final frame and the client player replays it.
+
+export type FigureKind =
+  | "integration"
+  | "agents"
+  | "webmcp"
+  | "preview"
+  | "runtimes"
+  | "mcp-code"
+  | "webmcp-code"
+  | "agents-code"
+  | "viby";
+export type IconKey =
+  | "stripe"
+  | "cloudflare"
+  | "eve"
+  | "farm"
+  | "agent"
+  | "phone"
+  | "browser"
+  | "relay";
+
+export interface WireFrame {
+  /** 0..1 how much of the connector is drawn. */
+  draw: number;
+  /** Position of the travelling pulse along the connector, 0..1, when one is in flight. */
+  pulse?: number;
+  /** 0..1 flash on the endpoint a pulse just reached ("a" is the path start, "b" the end). */
+  flashA?: number;
+  flashB?: number;
+  /** An inactive route stays visible but recedes. */
+  dim?: boolean;
+}
+
+export type PanelState = "hot" | "on" | "dim";
+
+export interface FigureFrame {
+  slots: Record<string, string>;
+  wires: Record<string, WireFrame>;
+  states?: Record<string, PanelState | undefined>;
+}
+
+export interface PanelSpec {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** App panels get a header; code panels put the title in the border; nodes show an icon. */
+  title?: string;
+  code?: boolean;
+  icon?: IconKey;
+  label?: string;
+  sub?: string;
+}
+
+export interface FigureSpec {
+  duration: number;
+  /** Stage size in figure units; defaults to STAGE. Compact figures fit small landing cards. */
+  stage?: { w: number; h: number };
+  /** The complete code behind the figure; offered to copy and to screen readers. */
+  source?: string;
+  /** The figure shows a commented excerpt of `source`, so Copy takes the whole file. */
+  excerpt?: boolean;
+  label: string;
+  panels: PanelSpec[];
+  wires: Record<string, [number, number][]>;
+  frame: (t: number) => FigureFrame;
+}
+
+// Stage coordinates; panels and connectors share this space so they stay aligned at any width.
+export const STAGE = { w: 760, h: 400 };
+
+const clamp = (v: number) => Math.max(0, Math.min(1, v));
+const prog = (t: number, at: number, d: number) => clamp((t - at) / d);
+const ease = (p: number) => 1 - (1 - clamp(p)) ** 3;
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const typed = (s: string, t: number, at: number, cps: number) =>
+  s.slice(0, Math.max(0, Math.floor((t - at) * cps)));
+/** Fades an element in by writing its opacity onto its own opening tag. */
+const shown = (html: string, t: number, at: number) =>
+  t < at
+    ? ""
+    : html.replace(/^<span /, `<span style="opacity:${ease(prog(t, at, 0.25)).toFixed(3)}" `);
+const spinner = (t: number) => "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[Math.floor(t * 14) % 10];
+const PULSE = 0.42;
+const caret = '<span class="bf-caret"></span>';
+const fade = (html: string, t: number, at: number) =>
+  t < at ? "" : `<span style="opacity:${ease(prog(t, at, 0.25)).toFixed(3)}">${html}</span>`;
+const hl = (s: string) =>
+  esc(s)
+    .replace(/("[^"]*"?|`[^`]*`?)/g, '<span class="bf-s">$1</span>')
+    .replace(
+      /\b(import|export|default|from|const|async|await|return|function|if|throw|new|type)\b/g,
+      '<span class="bf-k">$1</span>',
+    );
+const mark = (n: number, t: number, at: number) =>
+  t < at
+    ? ""
+    : `<span class="bf-mark" style="opacity:${ease(prog(t, at, 0.2)).toFixed(3)}">${n}</span>`;
+/** Renders verbatim code lines; `hot` lines get the edit highlight, `marks` add numbered callouts. */
+function codeLines(
+  lines: string[],
+  t: number,
+  opts: {
+    hot?: (i: number) => boolean;
+    marks?: Record<number, [number, number]>;
+    typed?: Record<number, [number, number]>;
+  } = {},
+) {
+  return lines
+    .map((l, i) => {
+      const ty = opts.typed?.[i];
+      let html = hl(l);
+      if (ty) {
+        const [at, cps] = ty;
+        const typing = t >= at - 0.3 && t < at + l.length / cps + 0.3;
+        html = t < at - 0.3 ? "" : hl(typed(l, t, at, cps)) + (typing ? caret : "");
+      }
+      const m = opts.marks?.[i];
+      if (m) html += mark(m[0], t, m[1]);
+      return line(html, opts.hot?.(i) ? "bf-add" : "");
+    })
+    .join("");
+}
+const line = (html: string, cls = "") =>
+  `<span class="bf-line${cls ? ` ${cls}` : ""}">${html || " "}</span>`;
+
+function wire(
+  t: number,
+  drawAt: number,
+  pulses: [number, boolean?][] = [],
+  dim = false,
+): WireFrame {
+  const out: WireFrame = { draw: ease(prog(t, drawAt, 0.5)), dim };
+  for (const [at, forward = true] of pulses) {
+    if (t >= at && t < at + PULSE) out.pulse = forward ? (t - at) / PULSE : 1 - (t - at) / PULSE;
+    const since = t - (at + PULSE);
+    if (since >= 0 && since < 0.35) {
+      const k = 1 - since / 0.35;
+      if (forward) out.flashB = Math.max(out.flashB ?? 0, k);
+      else out.flashA = Math.max(out.flashA ?? 0, k);
+    }
+  }
+  return out;
+}
+
+/** A panel is "hot" briefly after a pulse lands on it. */
+const hotAfter = (t: number, arrivals: number[]) =>
+  arrivals.some((at) => t >= at + PULSE && t < at + PULSE + 0.45);
+
+/* ---------- farm add integration stripe ---------- */
+
+const integration: FigureSpec = {
+  duration: 5.2,
+  label:
+    "farm add integration stripe creates the integration, updates config, and lists its environment",
+  panels: [
+    { id: "term", title: "Terminal", x: 0, y: 28, w: 450, h: 262, code: true },
+    { id: "env", title: "Environment", x: 0, y: 318, w: 450, h: 82 },
+    { id: "files", title: "Files", x: 490, y: 28, w: 270, h: 372 },
+  ],
+  wires: {
+    run: [
+      [450, 116],
+      [490, 116],
+    ],
+    loop: [
+      [330, 28],
+      [330, 10],
+      [640, 10],
+      [640, 28],
+    ],
+    env: [
+      [225, 290],
+      [225, 318],
+    ],
+  },
+  frame(t) {
+    const cmd = "farm add integration stripe";
+    const c0 = 0.35;
+    const cDone = c0 + cmd.length / 22;
+    const out = [
+      ["Added stripe integration as appIntegrations.billing", cDone + 0.25, "bf-hi"],
+      ["Created:", cDone + 0.45, "bf-dim"],
+      ["  src/lib/integrations/stripe.ts", cDone + 0.6, ""],
+      ["  src/lib/integrations.ts", cDone + 0.75, ""],
+      ["Updated:", cDone + 0.95, "bf-dim"],
+      ["  farm.config.ts", cDone + 1.1, ""],
+      ["  package.json", cDone + 1.25, ""],
+    ] as const;
+    let term = line(
+      `<span class="bf-dim">$ </span><span class="bf-hi">${esc(typed(cmd, t, c0, 22))}</span>${t >= c0 - 0.3 && t < cDone + 0.25 ? caret : ""}`,
+    );
+    for (const [text, at, cls] of out) term += t >= at ? line(fade(esc(text), t, at), cls) : "";
+
+    // A file row lights when the pulse carrying it arrives.
+    const files = [
+      ["src/", 0, "", 0],
+      ["lib/", 1, "", 0],
+      ["integrations/", 2, "", 0],
+      ["stripe.ts", 3, "A", cDone + 0.6],
+      ["integrations.ts", 2, "A", cDone + 0.75],
+      ["farm.config.ts", 0, "M", cDone + 1.1],
+      ["package.json", 0, "M", cDone + 1.25],
+    ] as const;
+    const arrive = 0.42;
+    const filesHtml = files
+      .map(([name, depth, flag, at]) => {
+        const shown = !flag || t >= at + arrive;
+        const hot = flag && t >= at + arrive && t < at + arrive + 0.5;
+        const folder = name.endsWith("/");
+        return (
+          `<span class="bf-file${hot ? " bf-hot" : ""}" style="padding-left:${depth * 1.1}em;opacity:${shown ? 1 : 0.28}">` +
+          `<span class="bf-glyph">${folder ? "▸" : "·"}</span>${esc(name)}` +
+          `<span class="bf-flag">${flag && shown ? flag : ""}</span></span>`
+        );
+      })
+      .join("");
+
+    const envAt = cDone + 1.55;
+    const env = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]
+      .map((key, i) => fade(`<span class="bf-env">${key}</span>`, t, envAt + 0.42 + i * 0.12))
+      .join("");
+
+    return {
+      slots: { term, files: filesHtml, env },
+      wires: {
+        run: wire(t, 0.2, [[cDone + 0.6], [cDone + 0.75], [cDone + 1.1], [cDone + 1.25]]),
+        loop: wire(t, 0.35, [[cDone + 0.25]]),
+        env: wire(t, 0.5, [[envAt]]),
+      },
+    };
+  },
+};
+
+/* ---------- one config line picks the runtime; the app's chat talks to it through tools ---------- */
+
+// iMessage-style tail: filled like the bubble, stroked only on its outer curve, tucked over the corner.
+const TAIL =
+  '<svg class="bf-tail" viewBox="0 0 16 18" aria-hidden="true"><path class="bf-tail-fill" d="M7.5 2C7.5 10 5 14.5.8 17c4.2.6 8.7-.5 11.2-3.4h1.3V2z"/><path class="bf-tail-line" d="M7.5 2C7.5 10 5 14.5.8 17c4.2.6 8.7-.5 11.2-3"/></svg>';
+
+function bubbles(
+  t: number,
+  at: number,
+  ask: string,
+  [tool, result]: [string, string],
+  answer: string,
+): { html: string; toolAt: number; done: number } {
+  const toolAt = at + 0.55;
+  const done = toolAt + 0.7;
+  const words = answer.split(" ");
+  const n = Math.floor(Math.max(0, t - done - 0.25) * 14);
+  let html =
+    t >= at ? shown(`<span class="bf-bubble bf-bubble--you">${esc(ask)}${TAIL}</span>`, t, at) : "";
+  if (t >= toolAt) {
+    const running = t < done;
+    html += shown(
+      `<span class="bf-tool"><span class="bf-tool-name">${esc(tool)}</span><span class="bf-tool-state">${running ? spinner(t) : "✓"}</span>${running ? "" : `<span class="bf-tool-result">${esc(result)}</span>`}</span>`,
+      t,
+      toolAt,
+    );
+  }
+  if (t >= done + 0.15) {
+    const body = n === 0 ? `<span class="bf-dim">…</span>` : esc(words.slice(0, n).join(" "));
+    html += `<span class="bf-bubble">${body}${TAIL}</span>`;
+  }
+  return { html, toolAt, done };
+}
+
+const agents: FigureSpec = {
+  duration: 8.2,
+  label:
+    "The app's chat runs on Eve, then on Cloudflare Agents after a one-line config change; each runtime answers by calling a tool",
+  panels: [
+    { id: "eve", x: 0, y: 44, w: 180, h: 120, icon: "eve", label: "Eve", sub: "/eve" },
+    {
+      id: "cf",
+      x: 0,
+      y: 236,
+      w: 180,
+      h: 120,
+      icon: "cloudflare",
+      label: "Cloudflare Agents",
+      sub: "one Worker",
+    },
+    { id: "chat", x: 260, y: 28, w: 500, h: 372, title: "Your app · /support" },
+  ],
+  wires: {
+    eve: [
+      [180, 104],
+      [220, 104],
+      [220, 214],
+      [260, 214],
+    ],
+    cf: [
+      [180, 296],
+      [220, 296],
+      [220, 214],
+      [260, 214],
+    ],
+  },
+  frame(t) {
+    const swap = 3.7;
+    const onCf = t >= swap;
+    const one = bubbles(
+      t,
+      0.6,
+      "Why is checkout failing?",
+      ["inspect_route", "500 · missing STRIPE_SECRET_KEY"],
+      "The Stripe key isn't set. Add it to .env and restart.",
+    );
+    const two = bubbles(
+      t,
+      swap + 0.7,
+      "Does my state survive a deploy?",
+      ["this.sql", "142 rows"],
+      "Yes. Each agent is a Durable Object with its own SQLite storage.",
+    );
+    const chat = onCf
+      ? `<span class="bf-note">Now on Cloudflare Agents</span>${two.html}`
+      : `<span class="bf-stack" style="opacity:${(1 - prog(t, swap - 0.3, 0.3)).toFixed(3)}">${one.html}</span>`;
+    return {
+      slots: {
+        chat: `<span class="bf-stack">${chat}</span>`,
+        "chat:meta": onCf ? "cfAgent()" : "eve()",
+      },
+      wires: {
+        eve: wire(t, 0.2, [[one.toolAt, false], [one.done - PULSE]], onCf),
+        cf: wire(t, 0.3, [[swap - 0.05, false], [two.toolAt, false], [two.done - PULSE]], !onCf),
+      },
+      states: {
+        eve: onCf ? "dim" : t >= one.toolAt && t < one.done + 0.2 ? "hot" : "on",
+        cf: onCf ? (t >= two.toolAt && t < two.done + 0.2 ? "hot" : "on") : "dim",
+      },
+    };
+  },
+};
+
+/* ---------- WebMCP: the page offers a tool, the browser's agent uses it ---------- */
+
+const PRODUCTS = ["Keyboard", "Desk mat", "USB-C hub", "Keycaps", "Monitor arm", "Wrist rest"];
+
+const webmcp: FigureSpec = {
+  duration: 5.8,
+  label:
+    "The page registers a search tool; the browser's agent calls it and the page filters its products",
+  panels: [
+    { id: "agent", x: 0, y: 140, w: 180, h: 120, icon: "agent", label: "Browser agent" },
+    { id: "page", x: 260, y: 50, w: 500, h: 300, title: "/shop" },
+  ],
+  wires: {
+    call: [
+      [180, 200],
+      [260, 200],
+    ],
+    loop: [
+      [90, 140],
+      [90, 24],
+      [620, 24],
+      [620, 50],
+    ],
+  },
+  frame(t) {
+    const register = 0.8;
+    const call = 2.0;
+    const result = call + 0.9;
+    const filtered = ease(prog(t, result, 0.35));
+    const grid = PRODUCTS.map((name) => {
+      const hit = /key/i.test(name);
+      return `<span class="bf-card${hit && filtered > 0.5 ? " bf-hot" : ""}" style="opacity:${hit ? 1 : (1 - 0.72 * filtered).toFixed(3)}"><span class="bf-ph"></span>${name}</span>`;
+    }).join("");
+    const tool =
+      t >= register
+        ? shown(
+            `<span class="bf-tool bf-tool--tag"><span class="bf-tool-name">search_products</span><span class="bf-tool-state">registered</span></span>`,
+            t,
+            register,
+          )
+        : "";
+    const agentBody =
+      (t >= call - 0.3
+        ? `<span class="bf-mini">${esc(typed('search("key")', t, call - 0.3, 26))}</span>`
+        : "") +
+      (t >= result + 0.45
+        ? shown(`<span class="bf-mini bf-hi">2 results</span>`, t, result + 0.45)
+        : "");
+    return {
+      slots: {
+        page: `${tool}<span class="bf-grid">${grid}</span>`,
+        agent: agentBody,
+        "page:meta": t >= register ? "1 tool" : "",
+      },
+      wires: {
+        call: wire(t, 0.2, [[register, false], [call], [result, false]]),
+        loop: wire(t, 0.4, [[register + 0.2]]),
+      },
+      states: {
+        agent:
+          hotAfter(t, [register - 0.02]) || (t >= result + 0.4 && t < result + 0.9) ? "hot" : "on",
+        page: hotAfter(t, [call]) ? "hot" : undefined,
+      },
+    };
+  },
+};
+
+/* ---------- farm preview: the outside world reaches localhost through a public URL ---------- */
+
+const preview: FigureSpec = {
+  duration: 6.4,
+  label:
+    "farm preview gives the local app a public URL; a phone, a teammate, and a Stripe webhook reach localhost through the relay",
+  panels: [
+    { id: "local", x: 0, y: 150, w: 170, h: 100, icon: "farm", label: "localhost:3000" },
+    { id: "relay", x: 220, y: 150, w: 280, h: 100, icon: "relay", label: "Public URL" },
+    { id: "phone", x: 560, y: 30, w: 200, h: 100, icon: "phone", label: "Phone" },
+    { id: "mate", x: 560, y: 150, w: 200, h: 100, icon: "browser", label: "Teammate" },
+    { id: "hook", x: 560, y: 270, w: 200, h: 100, icon: "stripe", label: "Stripe webhook" },
+  ],
+  wires: {
+    tunnel: [
+      [170, 200],
+      [220, 200],
+    ],
+    phone: [
+      [500, 200],
+      [530, 200],
+      [530, 80],
+      [560, 80],
+    ],
+    mate: [
+      [500, 200],
+      [560, 200],
+    ],
+    hook: [
+      [500, 200],
+      [530, 200],
+      [530, 320],
+      [560, 320],
+    ],
+  },
+  frame(t) {
+    const open = 0.9;
+    const url = "checkout-test.preview.farming-labs.dev";
+    // Each request comes in from its client, crosses the tunnel to localhost, and the response returns.
+    const reqs = [
+      ["phone", 1.6, "200"],
+      ["mate", 2.5, "200"],
+      ["hook", 3.4, "200 · verified"],
+    ] as const;
+    const slots: Record<string, string> = {
+      relay:
+        t >= open
+          ? shown(`<span class="bf-mini bf-hi">${url}</span>`, t, open)
+          : `<span class="bf-mini bf-dim">opening tunnel ${spinner(t)}</span>`,
+    };
+    const wires: Record<string, WireFrame> = {};
+    const states: Record<string, PanelState | undefined> = {};
+    const tunnelPulses: [number, boolean?][] = [];
+    for (const [id, at, status] of reqs) {
+      const cross = at + PULSE;
+      const back = cross + PULSE + 0.1;
+      const home = back + PULSE;
+      tunnelPulses.push([cross, false], [back]);
+      wires[id] = wire(t, 0.4, [[at, false], [home]]);
+      slots[id] =
+        t >= home + PULSE
+          ? shown(`<span class="bf-mini bf-hi">${status}</span>`, t, home + PULSE)
+          : t >= at
+            ? `<span class="bf-mini bf-dim">${spinner(t)}</span>`
+            : "";
+      states[id] = hotAfter(t, [home]) ? "hot" : undefined;
+    }
+    wires.tunnel = wire(t, 0.2, tunnelPulses);
+    states.local = tunnelPulses.some(
+      ([at, fwd]) => fwd === false && t >= at + PULSE && t < at + PULSE + 0.35,
+    )
+      ? "hot"
+      : "on";
+    states.relay = t >= open && t < open + 0.45 ? "hot" : undefined;
+    return { slots, wires, states };
+  },
+};
+
+/* ---------- code merged with what it does: the post shows these blocks inside the figures ---------- */
+
+// Code and demo share the stage in equal halves. A figure shows a commented excerpt that fits its
+// half; `source` keeps the complete file for Copy and screen readers.
+const HALF = 360;
+const DEMO_X = 400;
+/** Vertical centre of line `i` in a code panel whose top edge is at `top` (0.88em code type). */
+const codeY = (top: number, i: number) => top + 29 + i * 19;
+const at = (lines: string[], text: string) => lines.findIndex((l) => l.includes(text));
+
+const ROUTE_LINES: string[] = [
+  "// src/app/api/projects/route.ts",
+  'import { createEndpoint, type EndpointMiddlewareContext } from "@farm.js/core/api";',
+  'import { z } from "zod";',
+  'import { getSession } from "../../../lib/auth";',
+  'import { listProjects } from "../../../lib/projects";',
+  "",
+  "async function requireProjectAccess({ request }: EndpointMiddlewareContext) {",
+  "  const session = await getSession(request);",
+  '  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });',
+  '  if (!session.scopes.includes("projects:read")) {',
+  '    return Response.json({ error: "Forbidden" }, { status: 403 });',
+  "  }",
+  "  return { userId: session.user.id };",
+  "}",
+  "",
+  "export const GET = createEndpoint(",
+  '  "/api/projects",',
+  "  {",
+  '    method: "GET",',
+  '    query: z.object({ status: z.enum(["active", "planned"]).optional() }),',
+  "    middleware: [requireProjectAccess],",
+  "  },",
+  "  async ({ query, context }) => ({",
+  "    projects: await listProjects(context.userId, query.status),",
+  "  }),",
+  ");",
+];
+const ROUTE_VIEW: string[] = [
+  "// src/app/api/projects/route.ts",
+  "",
+  "async function requireProjectAccess(ctx) {",
+  "  // 401 without a session, 403 without the",
+  "  // projects:read scope, else { userId }",
+  "}",
+  "",
+  "export const GET = createEndpoint(",
+  '  "/api/projects",',
+  "  {",
+  '    method: "GET",',
+  "    query: z.object({",
+  '      status: z.enum(["active", "planned"])',
+  "        .optional(),",
+  "    }),",
+  "    middleware: [requireProjectAccess],",
+  "  },",
+  "  // HTTP requests and MCP calls both land here",
+  "  async ({ query, context }) => ({",
+  "    projects: await listProjects(",
+  "      context.userId,",
+  "      query.status,",
+  "    ),",
+  "  }),",
+  ");",
+];
+const R_MW = at(ROUTE_VIEW, "async function");
+const R_HANDLER = at(ROUTE_VIEW, "async ({ query");
+const R_H = codeY(0, ROUTE_VIEW.length) - 10;
+/** Vertical centre of line `i` in the MCP client log, below its header. */
+const logY = (i: number) => 28 + 50 + i * 19;
+
+const mcpCode: FigureSpec = {
+  duration: 7.4,
+  stage: { w: 760, h: 28 + R_H },
+  source: ROUTE_LINES.join("\n"),
+  excerpt: true,
+  label:
+    "An MCP client calls list_projects; the request runs the route's middleware and handler, then the projects come back",
+  panels: [
+    {
+      id: "route",
+      x: 0,
+      y: 28,
+      w: HALF,
+      h: R_H,
+      code: true,
+      title: "route.ts",
+    },
+    { id: "client", x: DEMO_X, y: 28, w: HALF, h: R_H, title: "MCP client" },
+  ],
+  wires: {
+    call: [
+      [DEMO_X, logY(0)],
+      [374, logY(0)],
+      [374, codeY(28, R_MW)],
+      [HALF, codeY(28, R_MW)],
+    ],
+    back: [
+      [HALF, codeY(28, R_HANDLER)],
+      [386, codeY(28, R_HANDLER)],
+      [386, logY(8)],
+      [DEMO_X, logY(8)],
+    ],
+  },
+  frame(t) {
+    const call = 0.9;
+    const guard = call + PULSE;
+    const handler = guard + 1.0;
+    const reply = handler + 0.9;
+    const middleware = (i: number) => i >= R_MW && i <= R_MW + 3;
+    const handlerLines = (i: number) => i >= R_HANDLER && i <= R_HANDLER + 5;
+    const route = codeLines(ROUTE_VIEW, t, {
+      hot: (i) =>
+        (t >= guard && t < handler && middleware(i)) ||
+        (t >= handler && t < reply + 0.6 && handlerLines(i)),
+      marks: { [R_MW]: [1, guard], [R_HANDLER]: [2, handler] },
+    });
+    // The client log is formatted like the code beside it: one JSON-RPC exchange, indented.
+    const req = "tools/call list_projects";
+    const sent = 0.2 + req.length / 40;
+    const rows: [number, string][] = [
+      [
+        0,
+        `<span class="bf-dim">→ </span><span class="bf-hi">${esc(typed(req, t, 0.2, 40))}</span>`,
+      ],
+      [sent, hl("{")],
+      [sent, hl('  "status": "active"')],
+      [sent, hl("}")],
+      [sent, ""],
+      [guard + 0.2, `<span class="bf-dim">✓ </span>requireProjectAccess`],
+      [handler + 0.1, `<span class="bf-dim">✓ </span>handler`],
+      [reply + PULSE, ""],
+      [reply + PULSE, `<span class="bf-dim">← </span>200`],
+      [reply + PULSE, hl("{")],
+      [reply + PULSE, hl('  "projects": [')],
+      [reply + PULSE, hl('    { "name": "Launch", "status": "active" }')],
+      [reply + PULSE, hl("  ]")],
+      [reply + PULSE, hl("}")],
+    ];
+    const log = rows
+      .filter(([from]) => t >= from)
+      .map(([from, html]) => (from > 0 && html ? line(fade(html, t, from)) : line(html)))
+      .join("");
+    return {
+      slots: { route, client: log, "client:meta": "/api/mcp" },
+      wires: { call: wire(t, 0.2, [[call]]), back: wire(t, 0.3, [[reply]]) },
+      states: { client: hotAfter(t, [reply]) ? "hot" : undefined },
+    };
+  },
+};
+
+const WEBMCP_LINES: string[] = [
+  "// src/components/projects-agent-tools.ts",
+  '"use client";',
+  "",
+  'import { useEffect } from "react";',
+  'import { defineWebMCPTool, registerWebMCPTool } from "@farm.js/webmcp/client";',
+  'import { z } from "zod";',
+  "",
+  'const input = z.object({ status: z.enum(["active", "planned"]).optional() });',
+  "const listProjects = defineWebMCPTool({",
+  '  name: "list_projects",',
+  '  description: "List the signed-in user\'s projects.",',
+  "  inputSchema: z.toJSONSchema(input),",
+  "  validate: input,",
+  "  annotations: { readOnlyHint: true },",
+  "  async execute({ status }, { signal }) {",
+  '    const query = status ? `?status=${encodeURIComponent(status)}` : "";',
+  "    const response = await fetch(`/api/projects${query}`, { signal });",
+  "    if (!response.ok) throw new Error(`Project lookup failed: ${response.status}`);",
+  "    return response.json();",
+  "  },",
+  "});",
+  "",
+  "export function ProjectsAgentTools() {",
+  "  useEffect(() => registerWebMCPTool(listProjects), []);",
+  "  return null;",
+  "}",
+];
+const WEBMCP_VIEW: string[] = [
+  "// src/components/projects-agent-tools.ts",
+  '"use client";',
+  "",
+  "const listProjects = defineWebMCPTool({",
+  '  name: "list_projects",',
+  '  description: "List the user\'s projects.",',
+  "  // + zod input schema and readOnlyHint",
+  "  async execute({ status }, { signal }) {",
+  "    // fetch /api/projects as the signed-in",
+  "    // user; the server still checks access",
+  "  },",
+  "});",
+  "",
+  "export function ProjectsAgentTools() {",
+  "  // the tool exists only while this is mounted",
+  "  useEffect(() =>",
+  "    registerWebMCPTool(listProjects), []);",
+  "  return null;",
+  "}",
+];
+const PROJECTS: [string, string][] = [
+  ["Launch site", "active"],
+  ["Docs refresh", "planned"],
+  ["Billing", "active"],
+];
+const W_EXEC = at(WEBMCP_VIEW, "async execute");
+const W_REG = at(WEBMCP_VIEW, "registerWebMCPTool(");
+const W_H = codeY(0, WEBMCP_VIEW.length) - 10;
+const PAGE_H = 170;
+// The agent and the page sit in a row under the code, as in the post's original layout.
+const W_ROW = 28 + W_H + 32;
+
+const webmcpCode: FigureSpec = {
+  duration: 7.6,
+  stage: { w: 760, h: W_ROW + PAGE_H },
+  source: WEBMCP_LINES.join("\n"),
+  excerpt: true,
+  label:
+    "The component registers list_projects; the browser's agent calls it, execute fetches the projects, and the page shows the active ones",
+  panels: [
+    {
+      id: "code",
+      x: 0,
+      y: 28,
+      w: 760,
+      h: W_H,
+      code: true,
+      title: "src/components/projects-agent-tools.ts",
+    },
+    { id: "agent", x: 0, y: W_ROW + 30, w: 200, h: 130, icon: "agent", label: "Browser agent" },
+    { id: "page", x: 260, y: W_ROW, w: 500, h: PAGE_H, title: "/projects" },
+  ],
+  wires: {
+    register: [
+      [690, 28 + W_H],
+      [690, W_ROW],
+    ],
+    execute: [
+      [420, W_ROW],
+      [420, 28 + W_H],
+    ],
+    call: [
+      [200, W_ROW + 95],
+      [260, W_ROW + 95],
+    ],
+  },
+  frame(t) {
+    const reg = 0.6;
+    const call = 2.0;
+    const run = call + PULSE + 0.15;
+    const done = run + 1.1;
+    const listed = done + PULSE + 0.2;
+    const executeLines = (i: number) => i >= W_EXEC && i <= W_EXEC + 3;
+    const code = codeLines(WEBMCP_VIEW, t, {
+      hot: (i) =>
+        (t >= reg - 0.2 && t < reg + 1.2 && (i === W_REG || i === W_REG - 1)) ||
+        (t >= run && t < done + 0.3 && executeLines(i)),
+      marks: { [W_REG]: [1, reg], [W_EXEC]: [2, run] },
+    });
+    const filtered = ease(prog(t, listed, 0.35));
+    const rows = PROJECTS.map(([name, status]) => {
+      const hit = status === "active";
+      return `<span class="bf-row${hit && filtered > 0.5 ? " bf-hot" : ""}" style="opacity:${hit ? 1 : (1 - 0.7 * filtered).toFixed(3)}"><span class="bf-dot${hit && filtered > 0.5 ? " bf-dot--on" : ""}"></span>${name}<span class="bf-flag">${status}</span></span>`;
+    }).join("");
+    const agent =
+      (t >= call - 0.4
+        ? `<span class="bf-mini">${esc(typed('list_projects("active")', t, call - 0.4, 30))}</span>`
+        : "") +
+      (t >= listed + PULSE
+        ? shown(`<span class="bf-mini bf-hi">2 projects</span>`, t, listed + PULSE)
+        : "");
+    return {
+      slots: { code, page: rows, agent, "page:meta": t >= reg + PULSE ? "1 tool" : "" },
+      wires: {
+        register: wire(t, 0.2, [[reg]]),
+        execute: wire(t, 0.3, [[run - PULSE + 0.1], [done, false]]),
+        call: wire(t, 0.4, [[call], [listed, false]]),
+      },
+      states: {
+        page: hotAfter(t, [reg]) ? "hot" : undefined,
+        agent:
+          (t >= call - 0.4 && t < call + 0.3) || (t >= listed + PULSE && t < listed + PULSE + 0.5)
+            ? "hot"
+            : "on",
+      },
+    };
+  },
+};
+
+const EVE_LINES: string[] = [
+  "// farm.config.ts — an Eve app",
+  'import { defineConfig } from "@farm.js/core";',
+  'import { eve } from "@farm.js/eve";',
+  "",
+  "export default defineConfig({",
+  "  integrations: { agent: eve() },",
+  "});",
+];
+const CF_LINES: string[] = [
+  "// farm.config.ts — a Cloudflare Agents app",
+  'import { defineConfig } from "@farm.js/core";',
+  'import { cfAgent } from "@farm.js/cf-agent";',
+  "",
+  "export default defineConfig({",
+  "  integrations: { agent: cfAgent() },",
+  '  deploy: { preset: "cloudflare-module" },',
+  "});",
+];
+const A_LINE = at(CF_LINES, "agent:");
+const A_H = 250;
+
+const agentsCode: FigureSpec = {
+  duration: 8.8,
+  stage: { w: 760, h: 28 + A_H },
+  source: `${EVE_LINES.join("\n")}\n\n${CF_LINES.join("\n")}`,
+  label:
+    "The Eve config runs the chat on Eve; switching to the Cloudflare Agents config runs the same chat on Cloudflare, each answering through a tool",
+  panels: [
+    { id: "config", x: 0, y: 28, w: HALF, h: A_H, code: true, title: "farm.config.ts" },
+    { id: "chat", x: DEMO_X, y: 28, w: HALF, h: A_H, title: "localhost:3000" },
+  ],
+  wires: {
+    run: [
+      [HALF, codeY(28, A_LINE)],
+      [DEMO_X, codeY(28, A_LINE)],
+    ],
+    loop: [
+      [180, 28],
+      [180, 10],
+      [DEMO_X + 180, 10],
+      [DEMO_X + 180, 28],
+    ],
+  },
+  frame(t) {
+    const swap = 4.0;
+    const onCf = t >= swap;
+    const glitching = t >= swap - 0.35 && t < swap;
+    const lines = onCf ? CF_LINES : EVE_LINES;
+    const deployLine = at(CF_LINES, "deploy:");
+    const noise = (l: string, k: number) =>
+      [...l]
+        .map((c, j) =>
+          c !== " " && (j * 7 + k + Math.floor(t * 24)) % 5 === 0 ? "#*/01_"[(j + k) % 6] : c,
+        )
+        .join("");
+    const shownLines = glitching
+      ? EVE_LINES.map((l, i) => (i === 0 || i === 2 || i === A_LINE ? noise(l, i) : l))
+      : lines;
+    const config = codeLines(shownLines, t, {
+      hot: (i) => i === A_LINE || (onCf && i === deployLine && t < swap + 1.4),
+      marks: onCf ? { [A_LINE]: [2, swap + 0.3] } : { [A_LINE]: [1, 0.5] },
+      typed: onCf ? { [deployLine]: [swap + 0.15, 45] } : undefined,
+    });
+    const one = bubbles(
+      t,
+      0.9,
+      "Why is checkout failing?",
+      ["inspect_route", "500 · no STRIPE_SECRET_KEY"],
+      "The Stripe key isn't set. Add it to .env.",
+    );
+    const two = bubbles(
+      t,
+      swap + 0.9,
+      "Does state survive a deploy?",
+      ["this.sql", "142 rows"],
+      "Yes. It's a Durable Object with SQLite storage.",
+    );
+    const chat = onCf
+      ? `<span class="bf-note">Now on Cloudflare</span>${two.html}`
+      : `<span class="bf-stack" style="opacity:${(1 - prog(t, swap - 0.3, 0.3)).toFixed(3)}">${one.html}</span>`;
+    return {
+      slots: {
+        config,
+        chat: `<span class="bf-stack">${chat}</span>`,
+        "chat:meta": onCf ? "cfAgent()" : "eve()",
+      },
+      wires: {
+        run: wire(t, 0.2, [[0.6], [swap + 0.35]]),
+        loop: wire(t, 0.3, [
+          [one.toolAt, false],
+          [two.toolAt, false],
+        ]),
+      },
+    };
+  },
+};
+
+/* ---------- landing: the app's origin routes to each agent runtime ---------- */
+
+const runtimes: FigureSpec = {
+  duration: 4.4,
+  stage: { w: 448, h: 280 },
+  label:
+    "Farm connects the app's origin to Eve on Vercel at /eve and to Cloudflare Agents on Workers at /agents",
+  panels: [
+    { id: "app", x: 0, y: 95, w: 132, h: 90, icon: "farm", label: "Your app", sub: "same origin" },
+    { id: "eve", x: 288, y: 18, w: 160, h: 96, icon: "eve", label: "Eve", sub: "Vercel" },
+    {
+      id: "cf",
+      x: 288,
+      y: 166,
+      w: 160,
+      h: 96,
+      icon: "cloudflare",
+      label: "Cloudflare Agents",
+      sub: "Workers",
+    },
+  ],
+  wires: {
+    eve: [
+      [132, 140],
+      [210, 140],
+      [210, 66],
+      [288, 66],
+    ],
+    cf: [
+      [132, 140],
+      [210, 140],
+      [210, 214],
+      [288, 214],
+    ],
+  },
+  frame(t) {
+    const toEve = 0.5;
+    const toCf = 2.3;
+    const route = (path: string, active: boolean) =>
+      `<span class="bf-mini${active ? " bf-hi" : " bf-dim"}">${path}</span>`;
+    const eveActive = t >= toEve && t < toEve + 2 * PULSE + 0.4;
+    const cfActive = t >= toCf && t < toCf + 2 * PULSE + 0.4;
+    return {
+      slots: { eve: route("/eve/*", eveActive), cf: route("/agents/*", cfActive) },
+      wires: {
+        eve: wire(t, 0.1, [[toEve], [toEve + PULSE + 0.2, false]]),
+        cf: wire(t, 0.2, [[toCf], [toCf + PULSE + 0.2, false]]),
+      },
+      states: {
+        eve: hotAfter(t, [toEve]) ? "hot" : undefined,
+        cf: hotAfter(t, [toCf]) ? "hot" : undefined,
+        app: hotAfter(t, [toEve + PULSE + 0.2, toCf + PULSE + 0.2]) ? "hot" : undefined,
+      },
+    };
+  },
+};
+
+/* ---------- landing: Viby, a vibe coding product built on Farm ---------- */
+
+const VIBY_TOOLS: [string, string, string, string][] = [
+  ["↳", "READ", "pricing.tsx", ""],
+  ["✎", "WRITE", "pricing.tsx", "+84"],
+  ["$", "SHELL", "farm build", "✓"],
+];
+const VIBY_VERSIONS: [string, string][] = [
+  ["v1", "scaffold"],
+  ["v2", "hero + nav"],
+  ["v3", "pricing page"],
+];
+// Preview wireframe blocks as [left %, top %, width %, height %]; the fourth is the chosen plan.
+const VIBY_BLOCKS: [number, number, number, number][] = [
+  [0, 0, 100, 10],
+  [0, 17, 60, 18],
+  [0, 43, 31, 57],
+  [34.5, 43, 31, 57],
+  [69, 43, 31, 57],
+];
+const vrow = (html: string, cls = "") =>
+  `<span class="bf-vrow${cls ? ` ${cls}` : ""}">${html}</span>`;
+
+const viby: FigureSpec = {
+  duration: 5.2,
+  stage: { w: 440, h: 300 },
+  label:
+    "Viby takes a prompt in a durable chat, its tools read, write, and build the workspace, the result is saved as an immutable version, and the sandbox preview is ready",
+  panels: [
+    { id: "chat", x: 0, y: 0, w: 205, h: 128, title: "Chat" },
+    { id: "versions", x: 235, y: 0, w: 205, h: 128, title: "Versions" },
+    { id: "workspace", x: 0, y: 158, w: 205, h: 142, title: "Workspace" },
+    { id: "preview", x: 235, y: 158, w: 205, h: 142, title: "Preview" },
+  ],
+  wires: {
+    ask: [
+      [102, 128],
+      [102, 158],
+    ],
+    save: [
+      [205, 240],
+      [220, 240],
+      [220, 143],
+      [300, 143],
+      [300, 128],
+    ],
+    ship: [
+      [380, 128],
+      [380, 158],
+    ],
+  },
+  frame(t) {
+    const ask = "Build a pricing page";
+    const a0 = 0.35;
+    const aDone = a0 + ask.length / 30;
+    const p1 = aDone + 0.3;
+    const p2 = p1 + 0.3 + VIBY_TOOLS.length * 0.18 + 0.05;
+    const v3 = p2 + 0.35;
+    const p3 = v3 + 0.15;
+    const ready = p3 + 0.75;
+    const chat =
+      `<span class="bf-note">You</span>` +
+      `<span class="bf-hi bf-vtext">${esc(typed(ask, t, a0, 30))}${t >= a0 - 0.2 && t < aDone + 0.2 ? caret : ""}</span>` +
+      (t > aDone + 0.25
+        ? `<span class="bf-note bf-vgap">Viby</span><span class="bf-vtext">${
+            t < ready
+              ? `Generating${".".repeat(1 + (Math.floor(t * 6) % 3))}`
+              : "Done. Saved as v3."
+          }</span>`
+        : "");
+    const workspace = VIBY_TOOLS.map(([icon, kind, file, result], i) => {
+      const at = p1 + 0.3 + i * 0.18;
+      if (t < at) return "";
+      return vrow(
+        `<span class="bf-dim">${icon}</span><span class="bf-dim">${kind}</span><span class="bf-hi">${esc(file)}</span><span class="bf-r">${result}</span>`,
+        t < at + 0.25 ? "bf-von" : "",
+      ).replace("<span ", `<span style="opacity:${ease(prog(t, at, 0.2)).toFixed(3)}" `);
+    }).join("");
+    const versions = VIBY_VERSIONS.map(([v, name], i) => {
+      if (i === 2 && t < v3) return "";
+      const row = vrow(
+        `<span class="bf-dim">${v}</span><span${i === 2 ? ' class="bf-hi"' : ""}>${name}</span><span class="bf-r">⌁</span>`,
+        i === 2 && t < v3 + 0.5 ? "bf-von" : "",
+      );
+      return i === 2
+        ? row.replace("<span ", `<span style="opacity:${ease(prog(t, v3, 0.25)).toFixed(3)}" `)
+        : row;
+    }).join("");
+    const preview = `<span class="bf-vprev">${VIBY_BLOCKS.map(([x, y, w, h], i) => {
+      const k = ease(prog(t, p3 + 0.35 + i * 0.1, 0.3));
+      return `<span class="bf-vblock${i === 3 ? " bf-vblock--on" : ""}" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;opacity:${k.toFixed(3)}"></span>`;
+    }).join("")}</span>`;
+    return {
+      slots: {
+        chat,
+        "chat:meta": "durable",
+        workspace,
+        "workspace:meta": "tools",
+        versions,
+        "versions:meta": "immutable",
+        preview,
+        "preview:meta": t >= ready ? "ready ✓" : "sandbox",
+      },
+      wires: {
+        ask: wire(t, 0.2, [[aDone + 0.3]]),
+        save: wire(t, 0.3, [[p2]]),
+        ship: wire(t, 0.4, [[p3]]),
+      },
+      states: {
+        chat: t >= a0 && t < aDone + 0.3 ? "hot" : undefined,
+        preview: t >= ready && t < ready + 0.6 ? "hot" : undefined,
+      },
+    };
+  },
+};
+
+export const FIGURES: Record<FigureKind, FigureSpec> = {
+  integration,
+  agents,
+  webmcp,
+  preview,
+  runtimes,
+  "mcp-code": mcpCode,
+  "webmcp-code": webmcpCode,
+  "agents-code": agentsCode,
+  viby,
+};
+
+/** SVG path with rounded elbows through the given stage points. */
+export function roundPath(points: [number, number][], radius = 12): string {
+  let d = `M${points[0][0]} ${points[0][1]}`;
+  for (let i = 1; i < points.length - 1; i++) {
+    const [x0, y0] = points[i - 1];
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[i + 1];
+    const la = Math.hypot(x1 - x0, y1 - y0);
+    const lb = Math.hypot(x2 - x1, y2 - y1);
+    const a = Math.min(radius, la / 2);
+    const b = Math.min(radius, lb / 2);
+    d += ` L${x1 - ((x1 - x0) / la) * a} ${y1 - ((y1 - y0) / la) * a}`;
+    d += ` Q${x1} ${y1} ${x1 + ((x2 - x1) / lb) * b} ${y1 + ((y2 - y1) / lb) * b}`;
+  }
+  const [lx, ly] = points[points.length - 1];
+  return `${d} L${lx} ${ly}`;
+}

@@ -496,8 +496,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 66px;
-  padding: 12px 48px;
+  min-height: 52px;
+  padding: 0 48px;
   border-bottom: 1px solid var(--blog-line);
 }
 .blog-breadcrumb a {

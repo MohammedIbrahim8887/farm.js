@@ -1,6 +1,8 @@
 import type { LayoutProps } from "@farm.js/core";
 import { AnnouncementBar, SiteFooter, SiteHeader } from "../../components/site-chrome";
 import "./blog.css";
+import "../../components/blog/figures.css";
+import "../../components/agents/waitlist.css";
 
 export default function BlogLayout({ children }: LayoutProps) {
   return (

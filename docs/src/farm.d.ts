@@ -14,8 +14,9 @@ import "@farm.js/core/css";
  */
 export type RoutePath =
   | "/"
+  | "/agents"
   | "/blog"
-  | "/blog/farm-0-1"
+  | "/blog/0.1.0"
   | "/docs"
   | `/docs/${string}`
   | "/docs/after"
@@ -113,8 +114,9 @@ export type RoutePath =
   | "/telemetry";
 export type RoutePattern =
   | "/"
+  | "/agents"
   | "/blog"
-  | "/blog/farm-0-1"
+  | "/blog/0.1.0"
   | "/docs"
   | "/docs/[...docs]"
   | "/docs/after"
@@ -212,8 +214,9 @@ export type RoutePattern =
   | "/telemetry";
 export type RouteModulePattern =
   | "/"
+  | "/agents"
   | "/blog"
-  | "/blog/farm-0-1"
+  | "/blog/0.1.0"
   | "/docs"
   | "/docs/[...docs]"
   | "/docs/after"

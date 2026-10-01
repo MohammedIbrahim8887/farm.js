@@ -25,7 +25,7 @@ describe("Markdown code", () => {
     expect(html).toContain('aria-hidden="true">bash</span>');
   });
   it.each([
-    ["bash", 'curl -H "Accept: text/markdown" https://farmjs.dev/blog/farm-0-1\n'],
+    ["bash", 'curl -H "Accept: text/markdown" https://farmjs.dev/blog/0.1.0\n'],
     ["ts", 'const message: string = "<script>alert(1)</script>";\n'],
   ])("highlights %s on the server and escapes code as text", (language, source) => {
     const html = renderToStaticMarkup(
