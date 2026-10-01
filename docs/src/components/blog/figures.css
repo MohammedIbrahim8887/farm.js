@@ -740,3 +740,27 @@
   height: 0.95em;
   color: #ededed;
 }
+
+/* Phones: the post's figures are too detailed to read at this width. Figures that carry code show
+   it as a plain scrollable block; illustration-only figures step aside. Landing cards (--fit) keep
+   their scaled animation. */
+@media (max-width: 640px) {
+  .blog-figure:not(.blog-figure--fit) :is(.bf-stage, .bf-controls, figcaption) {
+    display: none;
+  }
+  .blog-figure:not(.blog-figure--fit):not(.blog-figure--code) {
+    display: none;
+  }
+  .blog-figure--code pre[data-figure-source] {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 18px 20px;
+    overflow-x: auto;
+    clip-path: none;
+    border: 1px solid var(--blog-line, rgb(255 255 255 / 0.12));
+    background: #080808;
+    white-space: pre;
+  }
+}

@@ -55,7 +55,10 @@ export function BlogFigure({
   const stage = spec.stage ?? STAGE;
   const last = spec.frame(spec.duration);
   return (
-    <figure className={`blog-figure${fit ? " blog-figure--fit" : ""}`} data-figure={kind}>
+    <figure
+      className={`blog-figure${fit ? " blog-figure--fit" : ""}${spec.source ? " blog-figure--code" : ""}`}
+      data-figure={kind}
+    >
       <div
         className="bf-stage"
         role="img"

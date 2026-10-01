@@ -13,7 +13,7 @@ It is also a good moment to show everything that landed during the betas, becaus
 
 The release snapshot: **18 provider integration options, 15 official plugins, composable MCP tools, and five renderers.** Those are separate capabilities, not a count inflated by compatibility exports or helper packages. Here is what they let you build.
 
-<span id="what-stable-means" className="blog-heading-anchor" />
+<a id="what-stable-means" href="#what-stable-means" className="blog-heading-anchor" aria-label="Link to section: What stable means"><span aria-hidden="true">#</span></a>
 
 ## What stable means
 
@@ -29,7 +29,7 @@ Stable integrations promise compatibility for their Farm.js factory, configurati
 
 The full breakdown, including which deployment targets are verified and how, is on the [Stability and Support](https://farmjs.dev/docs/stability) page.
 
-<span id="the-app-foundation" className="blog-heading-anchor" />
+<a id="the-app-foundation" href="#the-app-foundation" className="blog-heading-anchor" aria-label="Link to section: The app foundation"><span aria-hidden="true">#</span></a>
 
 ## The app foundation
 
@@ -43,7 +43,7 @@ The parts every product needs, typed end to end:
 
 Small browser enhancements do not need a hydrated component tree. An optional [`src/client.ts`](https://farmjs.dev/docs/project-structure#html-first-client-lifecycle) connects server-rendered HTML to Farm.js's browser lifecycle, including initial setup, navigation, and cleanup. It is how this blog keeps its copy controls and reading indicator working between pages.
 
-<span id="five-renderers-one-framework" className="blog-heading-anchor" />
+<a id="five-renderers-one-framework" href="#five-renderers-one-framework" className="blog-heading-anchor" aria-label="Link to section: Five renderers, one framework"><span aria-hidden="true">#</span></a>
 
 ## Five renderers, one framework
 
@@ -51,7 +51,7 @@ React is the default. Preact, Solid, Vue, and Svelte use the same routing, APIs,
 
 The other four are beta in 0.1, and a test-checked [capability matrix](https://farmjs.dev/docs/renderers) shows exactly what each one supports, including streaming per deployment target. Shared routing does not mean identical rendering features: Svelte currently buffers server rendering rather than streaming it. Check the matrix before choosing an adapter for a specific runtime.
 
-<span id="an-integrations-ecosystem" className="blog-heading-anchor" />
+<a id="an-integrations-ecosystem" href="#an-integrations-ecosystem" className="blog-heading-anchor" aria-label="Link to section: An integrations ecosystem"><span aria-hidden="true">#</span></a>
 
 ## An integrations ecosystem
 
@@ -113,7 +113,7 @@ Integrations can also scaffold working screens through a shadcn-style UI registr
 
 This is not a closed catalog. Use [`defineIntegration`](https://farmjs.dev/docs/integrations/custom) to build an app-local adapter or publish a community package with the same typed routes, configuration validation, and lifecycle hooks. It does not have to live under Farming Labs.
 
-<span id="a-plugin-ecosystem-starting-with-devtools" className="blog-heading-anchor" />
+<a id="a-plugin-ecosystem-starting-with-devtools" href="#a-plugin-ecosystem-starting-with-devtools" className="blog-heading-anchor" aria-label="Link to section: A plugin ecosystem, starting with DevTools"><span aria-hidden="true">#</span></a>
 
 ## A plugin ecosystem, starting with DevTools
 
@@ -137,7 +137,7 @@ We count MCP separately: applications compose API endpoints and standalone tools
 
 Plugins change how the framework builds, renders, or handles requests; integrations connect a service to your app. Both have public authoring APIs. The [plugin authoring guide](https://farmjs.dev/docs/plugins/create-plugin) is the starting point for your own build tooling, diagnostics, or runtime policies.
 
-<span id="typed-content-collections" className="blog-heading-anchor" />
+<a id="typed-content-collections" href="#typed-content-collections" className="blog-heading-anchor" aria-label="Link to section: Typed content collections"><span aria-hidden="true">#</span></a>
 
 ## Typed content collections
 
@@ -149,7 +149,7 @@ Local edits are watched in development; production serves a validated, bundled s
 
 Already have a CMS? A `remote()` source can feed the same pipeline from an API or database, including Sanity and Contentful. Production remains a build-time snapshot: publish changes through a rebuild, rather than expecting live CMS reads on every request. The [Content guide](https://farmjs.dev/docs/plugins/content) covers sources, typed assets, static routes, and optional write callbacks.
 
-<span id="a-cli-that-explains-your-app" className="blog-heading-anchor" />
+<a id="a-cli-that-explains-your-app" href="#a-cli-that-explains-your-app" className="blog-heading-anchor" aria-label="Link to section: A CLI that explains your app"><span aria-hidden="true">#</span></a>
 
 ## A CLI that explains your app
 
@@ -161,7 +161,7 @@ Already have a CMS? A `remote()` source can feed the same pipeline from an API o
 
 <BlogFigure kind="preview" caption="farm preview gives localhost a public URL for phones, teammates, and webhooks" />
 
-<span id="built-for-agents-too" className="blog-heading-anchor" />
+<a id="built-for-agents-too" href="#built-for-agents-too" className="blog-heading-anchor" aria-label="Link to section: Built for agents too"><span aria-hidden="true">#</span></a>
 
 ## Built for agents too
 
@@ -184,7 +184,7 @@ Enable [OpenAPI](https://farmjs.dev/docs/openapi) to publish `/openapi.json` and
 
 Discovery describes what an app offers. It does **not** create an MCP server or grant access to application data. Pages also get canonical and Open Graph defaults, with optional JSON-LD.
 
-<span id="api-routes-as-mcp-tools" className="blog-heading-anchor" />
+<a id="api-routes-as-mcp-tools" href="#api-routes-as-mcp-tools" className="blog-heading-anchor" aria-label="Link to section: API routes and standalone MCP tools"><span aria-hidden="true">#</span></a>
 
 ## API routes and standalone MCP tools
 
@@ -214,7 +214,7 @@ Standalone tools can declare an `outputSchema` to type and validate their result
 
 Endpoint middleware still protects direct API access. Standalone tools receive the authorized principal, and your app remains responsible for row-level checks and sensitive actions. A tool's read-only hint is not a permission. Follow the [authorization guide](https://farmjs.dev/docs/plugins/mcp#authorize-individual-tools) for policy examples and [client setup](https://farmjs.dev/docs/plugins/mcp#connect-a-client) for credentials.
 
-<span id="browser-tools-with-webmcp" className="blog-heading-anchor" />
+<a id="browser-tools-with-webmcp" href="#browser-tools-with-webmcp" className="blog-heading-anchor" aria-label="Link to section: Browser tools with WebMCP"><span aria-hidden="true">#</span></a>
 
 ## Browser tools with WebMCP
 
@@ -228,7 +228,7 @@ Registration returns cleanup; Farm's browser adapter handles navigation and HMR.
 
 WebMCP remains an experimental [Community Group draft](https://webmachinelearning.github.io/webmcp/), not a W3C Standard. Unsupported browsers keep running the app normally without the tool surface. Check [Chrome's current setup instructions](https://developer.chrome.com/docs/ai/webmcp) for local testing or the origin trial, and the [Farm WebMCP guide](https://farmjs.dev/docs/plugins/webmcp) for lifecycle and security details. Tools that spend money, publish, or delete data still need the application's authorization and confirmation flow.
 
-<span id="bring-your-agent-framework" className="blog-heading-anchor" />
+<a id="bring-your-agent-framework" href="#bring-your-agent-framework" className="blog-heading-anchor" aria-label="Link to section: Bring your agent framework"><span aria-hidden="true">#</span></a>
 
 ## Bring your agent framework
 
@@ -250,7 +250,7 @@ Same-origin routing is not authentication. Protect agent HTTP and WebSocket entr
 
 **And for the agents writing your code,** routes, params, API calls, and configuration are typed and generated, so a wrong guess fails at type-check instead of in production.
 
-<span id="agent-infrastructure" className="blog-heading-anchor" />
+<a id="agent-infrastructure" href="#agent-infrastructure" className="blog-heading-anchor" aria-label="Link to section: Agent infrastructure"><span aria-hidden="true">#</span></a>
 
 ## Agent infrastructure
 
@@ -258,7 +258,7 @@ Same-origin routing is not authentication. Protect agent HTTP and WebSocket entr
 
 [Explore agent infrastructure](/agents)
 
-<span id="built-with-farm-viby" className="blog-heading-anchor" />
+<a id="built-with-farm-viby" href="#built-with-farm-viby" className="blog-heading-anchor" aria-label="Link to section: Built with Farm: Viby"><span aria-hidden="true">#</span></a>
 
 ## Built with Farm: Viby
 
@@ -272,7 +272,7 @@ The SDK is not tied to Farm.js. Farm is one supported framework, and the app is 
 
 [Explore the SDK](https://viby.farming-labs.dev) · [Try the Viby demo](https://viby-app.farming-labs.dev) · [Read the source](https://github.com/farming-labs/viby-sdk)
 
-<span id="deploy-where-you-already-are" className="blog-heading-anchor" />
+<a id="deploy-where-you-already-are" href="#deploy-where-you-already-are" className="blog-heading-anchor" aria-label="Link to section: Deploy where you already are"><span aria-hidden="true">#</span></a>
 
 ## Deploy where you already are
 
@@ -280,7 +280,7 @@ The SDK is not tied to Farm.js. Farm is one supported framework, and the app is 
 
 Run a production build for the target you will actually deploy, not only the development server. The [deployment guide](https://farmjs.dev/docs/deployment) covers target configuration and output. Use cron for scheduled HTTP work, `after()` for short post-response tasks, and a [jobs integration](https://farmjs.dev/docs/integrations/jobs) when work needs durable retries and execution history.
 
-<span id="how-we-earned-stable" className="blog-heading-anchor" />
+<a id="how-we-earned-stable" href="#how-we-earned-stable" className="blog-heading-anchor" aria-label="Link to section: How we earned &quot;stable&quot;"><span aria-hidden="true">#</span></a>
 
 ## How we earned "stable"
 
@@ -292,7 +292,7 @@ We also ran deployment output in real runtimes instead of trusting build logs. B
 
 The rest was unglamorous and necessary: malformed request bodies that returned 500 instead of 400, a storage dependency that let fresh installs close a database the app still owned, and a Content Security Policy warning that stayed quiet for policies that break hydration.
 
-<span id="try-it" className="blog-heading-anchor" />
+<a id="try-it" href="#try-it" className="blog-heading-anchor" aria-label="Link to section: Try it"><span aria-hidden="true">#</span></a>
 
 ## Try it
 
