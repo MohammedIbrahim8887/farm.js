@@ -130,10 +130,25 @@ export function enhanceContents(root: HTMLElement) {
     },
     { passive: true, signal },
   );
+  // Each section heading links to its own anchor, the same target the contents use, so a reader can
+  // click or copy a heading to share that section. The heading text is the link; no "#" is shown.
+  const headingLinks = sections.flatMap((section) => {
+    const heading = section.nextElementSibling;
+    if (!(heading instanceof HTMLHeadingElement) || heading.querySelector(".blog-heading-link"))
+      return [];
+    const link = document.createElement("a");
+    link.className = "blog-heading-link";
+    link.href = `#${section.id}`;
+    link.append(...heading.childNodes);
+    heading.append(link);
+    return [{ heading, link }];
+  });
+
   updateSection();
   return () => {
     controller.abort();
     cancelAnimationFrame(frame);
     for (const observer of observers) observer.disconnect();
+    for (const { heading, link } of headingLinks) heading.replaceChildren(...link.childNodes);
   };
 }

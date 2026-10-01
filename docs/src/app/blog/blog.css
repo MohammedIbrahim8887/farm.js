@@ -831,42 +831,29 @@
   padding-left: 22px;
   color: #ededed;
 }
-/* Each section starts with a "#" link to itself, set in the gutter beside its heading. */
 .blog-heading-anchor {
   display: block;
-  position: relative;
   height: 0;
-  /* The anchor carries the heading's top spacing, so it sits exactly at the heading's top edge. */
-  margin-top: 52px;
   scroll-margin-top: 76px;
-  color: #3d3d3d;
-  text-decoration: none;
-}
-.blog-prose .blog-heading-anchor + h2 {
-  margin-top: 0;
-}
-.blog-heading-anchor > span {
-  position: absolute;
-  top: 0;
-  left: -1.05em;
-  font-size: 27px;
-  line-height: 1.25;
-  transition: color 150ms;
-}
-.blog-heading-anchor:is(:hover, :focus-visible, :target) {
-  color: #ededed;
-}
-.blog-heading-anchor:focus-visible {
-  outline: none;
-}
-.blog-heading-anchor:focus-visible > span {
-  outline: 2px solid #ededed;
-  outline-offset: 2px;
 }
 .blog-heading-anchor:target + h2 {
   text-decoration: underline;
   text-decoration-color: #454545;
   text-underline-offset: 8px;
+}
+/* Section headings link to themselves (added by contents-navigation); no visible "#". */
+.blog-heading-link {
+  color: inherit;
+  text-decoration: none;
+}
+.blog-heading-link:hover {
+  text-decoration: underline;
+  text-decoration-color: #454545;
+  text-underline-offset: 8px;
+}
+.blog-heading-link:focus-visible {
+  outline: 2px solid #ededed;
+  outline-offset: 4px;
 }
 .blog-mobile-contents {
   display: none;
@@ -1054,14 +1041,6 @@
     line-height: 1.85;
   }
   .blog-prose .farm-markdown > h1:first-child + p + p {
-    font-size: 18px;
-  }
-  .blog-heading-anchor {
-    margin-top: 40px;
-  }
-  .blog-heading-anchor > span {
-    top: 4px;
-    left: -18px;
     font-size: 18px;
   }
   .blog-prose h2 {
