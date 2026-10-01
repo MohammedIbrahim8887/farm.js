@@ -86,4 +86,21 @@ describe("launch post figures", () => {
       }
     }
   });
+
+  it("draws the agents hero as your app -> Farm.js -> agents, MCP, and your site", () => {
+    for (const kind of ["agents-flow", "agents-flow-stacked"] as const) {
+      const spec = FIGURES[kind];
+      const html = renderToStaticMarkup(<BlogFigure fit kind={kind} />);
+      for (const text of ["Your app", "Farm.js", "Agents", "MCP", "Your site"])
+        expect(html).toContain(text);
+      expect(html).not.toContain("bf-controls");
+      // every branch of the fork carries a pulse at some point in the loop
+      for (const branch of ["in", "agents", "mcp", "site"]) {
+        let pulsed = false;
+        for (let t = 0; t <= spec.duration; t += 0.05)
+          if (spec.frame(t).wires[branch].pulse !== undefined) pulsed = true;
+        expect(pulsed).toBe(true);
+      }
+    }
+  });
 });

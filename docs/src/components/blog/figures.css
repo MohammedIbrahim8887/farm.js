@@ -575,3 +575,168 @@
   line-height: 1.75;
   white-space: pre;
 }
+
+/* Agents-page figures share one system: pills and list rows with the same icon tile, type,
+   radius, and status marks; active items brighten their border slightly instead of filling. */
+.bf-flow {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0 0.85em;
+}
+.bf-flow-icon,
+.bf-item-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.2em;
+  height: 2.2em;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 5px;
+  background: #0d0d0d;
+  color: #cfcfcf;
+}
+.bf-flow-icon svg,
+.bf-flow-icon img,
+.bf-item-icon svg {
+  display: block;
+  width: 1.1em;
+  height: 1.1em;
+}
+/* The Farm.js mark has its own padding, so it sits a little larger in the same tile. */
+.bf-flow-icon img {
+  width: 1.35em;
+  height: 1.35em;
+}
+.bf-flow-text,
+.bf-item-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2em;
+}
+.bf-flow-kicker {
+  color: #6e6e6e;
+  font-size: 0.68em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.bf-flow-title,
+.bf-item-name {
+  overflow: hidden;
+  color: #ededed;
+  font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
+  font-size: 0.92em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bf-item-sub {
+  overflow: hidden;
+  color: #777;
+  font-size: 0.72em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bf-flow .bf-body {
+  margin-left: auto;
+  padding: 0;
+  overflow: visible;
+}
+.bf-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  margin: 0 -0.5em;
+  padding: 0.4em 0.5em;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition:
+    background-color 0.3s,
+    border-color 0.3s,
+    opacity 0.3s;
+}
+.bf-item + .bf-item {
+  margin-top: 0.2em;
+}
+.bf-item.bf-von {
+  border-color: rgb(255 255 255 / 0.14);
+  background: rgb(255 255 255 / 0.03);
+}
+.bf-item--wait {
+  opacity: 0.45;
+}
+.bf-item-meta {
+  margin-left: auto;
+  color: #8a8a8a;
+  font-size: 0.72em;
+  white-space: nowrap;
+}
+.bf-item-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+}
+.bf-item-text + .bf-item-state {
+  margin-left: auto;
+}
+/* Status marks: waiting dot, spinning ring, live dot, or a check circle; always the same size. */
+.bf-st {
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: #3a3a3a;
+}
+.bf-st--run {
+  width: 1.05em;
+  height: 1.05em;
+  border: 1.5px solid rgb(255 255 255 / 0.18);
+  border-top-color: #d8d8d8;
+  background: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bf-st--run {
+    animation: bf-spin 0.9s linear infinite;
+  }
+}
+@keyframes bf-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+.bf-st--live {
+  background: #d8d8d8;
+}
+.bf-st--ok {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3em;
+  height: 1.3em;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  background: none;
+  color: #d8d8d8;
+  font-size: 0.78em;
+  line-height: 1;
+}
+/* Logo badges in a step title: each mark sits beside its name at text height. */
+.bf-flow-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+}
+.bf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+.bf-badge svg {
+  flex: none;
+  width: auto;
+  height: 0.95em;
+  color: #ededed;
+}

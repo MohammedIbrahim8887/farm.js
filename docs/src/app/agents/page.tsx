@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AgentArtwork } from "../../components/agents/artwork";
 import { AgentWaitlist } from "../../components/agents/waitlist";
+import { BlogFigure } from "../../components/blog/figures";
 import {
   AnnouncementBar,
   IndexedLabel,
@@ -20,6 +21,7 @@ import {
   SiteHeader,
 } from "../../components/site-chrome";
 import "../../components/agents/waitlist.css";
+import "../../components/blog/figures.css";
 import "./agents.css";
 
 export const metadata = {
@@ -85,22 +87,25 @@ const capabilities = [
     index: "01",
     icon: Server,
     label: "Deployment",
+    visual: "agents-deploy",
     title: "Your agents. Your codebase.",
     description:
-      "Deploy and manage agents alongside your Farm.js app, with a shared place to follow their lifecycle.",
+      "Deploy and manage agents alongside your Farm.js app, from the same codebase, with one shared place to follow each agent's lifecycle and status.",
   },
   {
     index: "02",
     icon: Cable,
     label: "MCP & connections",
-    title: "Tools without the silos.",
+    visual: "agents-connect",
+    title: "One gateway for every MCP server.",
     description:
-      "Deploy MCP servers and connect them to compatible clients, agents, and services you choose. Keep control of what each connection can do.",
+      "Deploy MCP servers and connect compatible clients to them. Farm.js gathers your servers behind a single tool that orchestrates them on each client's behalf.",
   },
   {
     index: "03",
     icon: Globe2,
     label: "Agent-ready websites",
+    visual: "agents-site",
     title: "A website agents can use.",
     description:
       "Publish readable content and discoverable tool descriptions. Let compatible agents talk to your app, use approved actions, and receive results—not just read pages.",
@@ -109,9 +114,10 @@ const capabilities = [
     index: "04",
     icon: Activity,
     label: "Observability",
+    visual: "agents-observe",
     title: "See the whole run.",
     description:
-      "Follow runs, tool calls, logs, and failures together, from the first request to the final response.",
+      "Follow runs, tool calls, logs, and failures together in one timeline, from the first request to the final response, with the timing of each step.",
   },
 ] as const;
 
@@ -142,8 +148,7 @@ export default function AgentsPage() {
                   same Farm.js codebase.
                 </p>
                 <div id="waitlist" className="agents-signup">
-                  <p className="agents-signup-heading">In development. Get early access updates.</p>
-                  <AgentWaitlist source="agents" />
+                  <AgentWaitlist source="agents" note={false} />
                 </div>
               </div>
               <AgentArtwork />
@@ -201,11 +206,16 @@ export default function AgentsPage() {
                 </p>
               </div>
               <div className="agents-capabilities farm-full-rule">
-                {capabilities.map(({ index, icon, label, title, description }) => (
+                {capabilities.map(({ index, icon, label, title, description, visual }) => (
                   <article key={index}>
                     <IndexedLabel index={index} icon={icon} label={label} />
                     <h3 className="font-geist-pixel">{title}</h3>
                     <p>{description}</p>
+                    <div className="agents-card-visual farm-feature-spotlight">
+                      <div className="agents-card-figure">
+                        <BlogFigure fit kind={visual} />
+                      </div>
+                    </div>
                   </article>
                 ))}
               </div>

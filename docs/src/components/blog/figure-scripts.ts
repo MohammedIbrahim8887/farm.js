@@ -11,7 +11,13 @@ export type FigureKind =
   | "mcp-code"
   | "webmcp-code"
   | "agents-code"
-  | "viby";
+  | "viby"
+  | "agents-flow"
+  | "agents-flow-stacked"
+  | "agents-deploy"
+  | "agents-connect"
+  | "agents-site"
+  | "agents-observe";
 export type IconKey =
   | "stripe"
   | "cloudflare"
@@ -20,7 +26,10 @@ export type IconKey =
   | "agent"
   | "phone"
   | "browser"
-  | "relay";
+  | "relay"
+  | "chat"
+  | "tool"
+  | "page";
 
 export interface WireFrame {
   /** 0..1 how much of the connector is drawn. */
@@ -54,6 +63,11 @@ export interface PanelSpec {
   icon?: IconKey;
   label?: string;
   sub?: string;
+  /** Workflow step: icon tile, small kicker, title, and a status the player writes on the right. */
+  flow?: boolean;
+  kicker?: string;
+  /** Logos with short names shown as the step's title instead of `label`. */
+  badges?: [IconKey, string][];
 }
 
 export interface FigureSpec {
@@ -1044,6 +1058,479 @@ const viby: FigureSpec = {
   },
 };
 
+/* ---------- agents page: one visual system for every illustration ----------
+ * Pills (icon tile, kicker, title, status) and list cards (header + rows) only; one step rhythm;
+ * active items brighten their border slightly (agents.css), never fill. */
+
+const BEAT = 0.8; // one step per beat across every agents-page figure
+const HOLD = 2.6; // rest on the finished state before the loop restarts
+
+/** A step's status: waiting dot, spinning ring, or a check circle. */
+const step = (t: number, start: number, done: number) =>
+  t >= done
+    ? '<span class="bf-st bf-st--ok">✓</span>'
+    : t >= start
+      ? '<span class="bf-st bf-st--run"></span>'
+      : '<span class="bf-st"></span>';
+const busy = (t: number, start: number, done: number) =>
+  t >= start && t < done ? "hot" : undefined;
+
+/** Path-only line icons for rows inside a slot (slot HTML allows span, svg, and path). */
+const glyph = (...paths: string[]) =>
+  `<span class="bf-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths
+    .map((d) => `<path d="${d}"/>`)
+    .join("")}</svg></span>`;
+const G = {
+  bot: glyph(
+    "M12 8V4H8",
+    "M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z",
+    "M2 14h2",
+    "M20 14h2",
+    "M15 13v2",
+    "M9 13v2",
+  ),
+  server: glyph(
+    "M4 2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z",
+    "M4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z",
+    "M6 6h.01",
+    "M6 18h.01",
+  ),
+  file: glyph(
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "M16 13H8",
+    "M16 17H8",
+  ),
+  search: glyph("M11 3a8 8 0 1 0 0 16a8 8 0 1 0 0-16z", "m21 21-4.3-4.3"),
+  model: glyph("M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"),
+  swap: glyph("m16 3 4 4-4 4", "M20 7H4", "m8 21-4-4 4-4", "M4 17h16"),
+};
+type GlyphKey = keyof typeof G;
+
+/** One list row: icon tile, name over detail, optional right-hand meta, status. */
+const row = (icon: GlyphKey, name: string, sub: string, meta: string, status: string, cls = "") =>
+  `<span class="bf-item${cls ? ` ${cls}` : ""}">${G[icon]}<span class="bf-item-text"><span class="bf-item-name">${name}</span><span class="bf-item-sub">${sub}</span></span>${meta ? `<span class="bf-item-meta">${meta}</span>` : ""}<span class="bf-item-state">${status}</span></span>`;
+
+// Hero, wide screens: the original diagram (your app -> Farm.js -> agents, MCP, your site).
+const FORK: [string, IconKey, string, string, number][] = [
+  ["agents", "agent", "Agents", "Eve, Cloudflare", 0],
+  ["mcp", "tool", "MCP", "Tools you choose", 230],
+  ["site", "page", "Your site", "Markdown, WebMCP", 460],
+];
+/** The runtimes Farm.js integrates today, shown as their marks (the same ones as the launch film). */
+const AGENT_BADGES: [IconKey, string][] = [
+  ["eve", "Eve"],
+  ["cloudflare", "Cloudflare"],
+];
+const forkFrame = (t: number): FigureFrame => {
+  const reached = BEAT;
+  const routed = reached + PULSE + BEAT;
+  const fan = FORK.map((_, i) => routed + i * 0.35);
+  const slots: Record<string, string> = { app: "", farm: "" };
+  const states: Record<string, PanelState | undefined> = {
+    app: busy(t, 0.2, reached),
+    farm: busy(t, reached + PULSE, routed),
+  };
+  const wires: Record<string, WireFrame> = { in: wire(t, 0.1, [[reached]]) };
+  FORK.forEach(([id], i) => {
+    slots[id] = "";
+    states[id] = busy(t, fan[i] + PULSE, fan[i] + PULSE + BEAT);
+    wires[id] = wire(t, 0.2 + i * 0.1, [[fan[i]]]);
+  });
+  return { slots, wires, states };
+};
+const forkDuration = BEAT + PULSE + BEAT + 2 * 0.35 + PULSE + BEAT + HOLD;
+
+const agentsFlow: FigureSpec = {
+  duration: forkDuration,
+  stage: { w: 660, h: 250 },
+  label:
+    "Your app sends every request through Farm.js, which routes it on the same origin to your agents, your MCP tools, and your agent-readable site",
+  panels: [
+    {
+      id: "app",
+      x: 230,
+      y: 0,
+      w: 200,
+      h: 48,
+      flow: true,
+      icon: "browser",
+      kicker: "Your app",
+      label: "your-app.com",
+    },
+    {
+      id: "farm",
+      x: 210,
+      y: 96,
+      w: 240,
+      h: 56,
+      flow: true,
+      icon: "farm",
+      kicker: "Farm.js",
+      label: "Routes it all",
+    },
+    ...FORK.map(([id, icon, kicker, label, x]) => ({
+      id,
+      x,
+      y: 200,
+      w: 200,
+      h: 50,
+      flow: true,
+      icon,
+      kicker,
+      label,
+      badges: id === "agents" ? AGENT_BADGES : undefined,
+    })),
+  ],
+  wires: {
+    in: [
+      [330, 48],
+      [330, 96],
+    ],
+    agents: [
+      [330, 152],
+      [330, 176],
+      [100, 176],
+      [100, 200],
+    ],
+    mcp: [
+      [330, 152],
+      [330, 200],
+    ],
+    site: [
+      [330, 152],
+      [330, 176],
+      [560, 176],
+      [560, 200],
+    ],
+  },
+  frame: forkFrame,
+};
+
+// Hero, narrow screens: the same diagram stacked so the type stays legible on a phone.
+const agentsFlowStacked: FigureSpec = {
+  duration: forkDuration,
+  stage: { w: 400, h: 368 },
+  label: agentsFlow.label,
+  panels: [
+    {
+      id: "app",
+      x: 50,
+      y: 0,
+      w: 300,
+      h: 48,
+      flow: true,
+      icon: "browser",
+      kicker: "Your app",
+      label: "your-app.com",
+    },
+    {
+      id: "farm",
+      x: 50,
+      y: 84,
+      w: 300,
+      h: 56,
+      flow: true,
+      icon: "farm",
+      kicker: "Farm.js",
+      label: "Routes it all",
+    },
+    ...FORK.map(([id, icon, kicker, label], i) => ({
+      id,
+      x: 90,
+      y: 176 + i * 66,
+      w: 310,
+      h: 50,
+      flow: true,
+      icon,
+      kicker,
+      label,
+      badges: id === "agents" ? AGENT_BADGES : undefined,
+    })),
+  ],
+  wires: {
+    in: [
+      [200, 48],
+      [200, 84],
+    ],
+    ...Object.fromEntries(
+      FORK.map(([id], i) => [
+        id,
+        [
+          [70, 140],
+          [70, 201 + i * 66],
+          [90, 201 + i * 66],
+        ],
+      ]),
+    ),
+  },
+  frame: forkFrame,
+};
+
+// 06.2 cards: the same size, the same parts, the same rhythm.
+const CARD = { w: 520, h: 240 };
+
+const DEPLOYED: [GlyphKey, string, string, string][] = [
+  ["bot", "support-agent", "Eve on Vercel", "42 ms"],
+  ["bot", "billing-agent", "Cloudflare Worker", "31 ms"],
+  ["server", "mcp-server", "3 tools", "18 ms"],
+  ["bot", "docs-agent", "Eve on Vercel", "57 ms"],
+];
+const agentsDeploy: FigureSpec = {
+  duration: 1 + 3 * BEAT + HOLD,
+  stage: CARD,
+  label:
+    "Your deployed agents and MCP server in one list with latency and status; a new agent finishes deploying and goes live",
+  panels: [{ id: "list", x: 0, y: 0, ...CARD, title: "Deployments" }],
+  wires: {},
+  frame(t) {
+    const start = 1;
+    const live = start + 3 * BEAT;
+    const rows = DEPLOYED.map(([icon, name, where, ms], i) => {
+      const coming = i === 3 && t < live;
+      const status = coming
+        ? '<span class="bf-st bf-st--run"></span>'
+        : '<span class="bf-st bf-st--live"></span>';
+      return row(
+        icon,
+        name,
+        where,
+        coming ? "Deploying" : ms,
+        status,
+        i === 3 && t >= start && t < live ? "bf-von" : "",
+      );
+    }).join("");
+    return {
+      slots: { list: rows, "list:meta": t >= live ? "4 live" : "3 live" },
+      wires: {},
+      states: {},
+    };
+  },
+};
+
+// Clients connect to one gateway tool; Farm.js fans each call out to the MCP servers behind it.
+const MCP_CLIENTS: [string, IconKey, string][] = [
+  ["chat", "chat", "Chat app"],
+  ["ide", "browser", "IDE agent"],
+  ["own", "agent", "Your agent"],
+];
+const MCP_SERVERS: [string, string][] = [
+  ["api", "Your API"],
+  ["docs", "Docs search"],
+  ["tickets", "Tickets"],
+];
+const LANE = (i: number) => 20 + i * 78; // top of each client / server pill
+const agentsConnect: FigureSpec = {
+  duration: 0.6 + 2 * 0.3 + PULSE + BEAT + 2 * 0.3 + PULSE + BEAT + HOLD,
+  stage: CARD,
+  label:
+    "Three compatible clients connect to one gateway tool, which orchestrates the MCP servers behind it on each client's behalf",
+  panels: [
+    ...MCP_CLIENTS.map(([id, icon, label], i) => ({
+      id,
+      x: 0,
+      y: LANE(i),
+      w: 150,
+      h: 44,
+      flow: true,
+      icon,
+      kicker: "Client",
+      label,
+    })),
+    {
+      id: "gateway",
+      x: 185,
+      y: 86,
+      w: 150,
+      h: 68,
+      flow: true,
+      icon: "tool" as IconKey,
+      kicker: "Gateway",
+      label: "One tool",
+    },
+    ...MCP_SERVERS.map(([id, label], i) => ({
+      id,
+      x: 370,
+      y: LANE(i),
+      w: 150,
+      h: 44,
+      flow: true,
+      icon: "page" as IconKey,
+      kicker: "MCP server",
+      label,
+    })),
+  ],
+  wires: {
+    ...Object.fromEntries(
+      MCP_CLIENTS.map(([id], i): [string, [number, number][]] => [
+        id,
+        i === 1
+          ? [
+              [150, 120],
+              [185, 120],
+            ]
+          : [
+              [150, LANE(i) + 22],
+              [167, LANE(i) + 22],
+              [167, 120],
+              [185, 120],
+            ],
+      ]),
+    ),
+    ...Object.fromEntries(
+      MCP_SERVERS.map(([id], i): [string, [number, number][]] => [
+        id,
+        i === 1
+          ? [
+              [335, 120],
+              [370, 120],
+            ]
+          : [
+              [335, 120],
+              [352, 120],
+              [352, LANE(i) + 22],
+              [370, LANE(i) + 22],
+            ],
+      ]),
+    ),
+  },
+  frame(t) {
+    const sent = MCP_CLIENTS.map((_, i) => 0.6 + i * 0.3);
+    const gatewayStart = sent[2] + PULSE;
+    const fanned = MCP_SERVERS.map((_, i) => gatewayStart + BEAT + i * 0.3);
+    const answered = fanned.map((at) => at + PULSE + BEAT * 0.75);
+    const gatewayDone = answered[2];
+    const slots: Record<string, string> = {
+      gateway: step(t, gatewayStart, gatewayDone),
+    };
+    const states: Record<string, PanelState | undefined> = {
+      gateway: busy(t, gatewayStart, gatewayDone),
+    };
+    const wires: Record<string, WireFrame> = {};
+    MCP_CLIENTS.forEach(([id], i) => {
+      slots[id] = step(t, sent[i] - BEAT * 0.5, gatewayDone);
+      wires[id] = wire(t, 0.1 + i * 0.05, [[sent[i]]]);
+    });
+    MCP_SERVERS.forEach(([id], i) => {
+      slots[id] = step(t, fanned[i] + PULSE, answered[i]);
+      states[id] = busy(t, fanned[i] + PULSE, answered[i]);
+      wires[id] = wire(t, 0.25 + i * 0.05, [[fanned[i]]]);
+    });
+    return { slots, wires, states };
+  },
+};
+
+const agentsSite: FigureSpec = {
+  duration: 0.6 + PULSE + BEAT + PULSE + 4 * 0.3 + HOLD,
+  stage: CARD,
+  label:
+    "An agent asks your site for /pricing as Markdown and receives the same content a person reads",
+  panels: [
+    {
+      id: "agent",
+      x: 0,
+      y: 0,
+      w: 230,
+      h: 48,
+      flow: true,
+      icon: "agent",
+      kicker: "Agent",
+      label: "GET /pricing",
+    },
+    {
+      id: "site",
+      x: 290,
+      y: 0,
+      w: 230,
+      h: 48,
+      flow: true,
+      icon: "page",
+      kicker: "Your site",
+      label: "text/markdown",
+    },
+    { id: "doc", x: 0, y: 96, w: 520, h: 144, title: "pricing.md" },
+  ],
+  wires: {
+    req: [
+      [230, 24],
+      [290, 24],
+    ],
+    res: [
+      [405, 48],
+      [405, 96],
+    ],
+  },
+  frame(t) {
+    const asked = 0.6;
+    const served = asked + PULSE + BEAT;
+    const arrived = served + PULSE;
+    const doc = [
+      '<span class="bf-hi"># Pricing</span>',
+      "- Hobby: free",
+      "- Pro: $20 / month",
+      "- Team: $50 / month",
+    ]
+      .map(
+        (html, i) =>
+          `<span class="bf-line" style="opacity:${ease(prog(t, arrived + i * 0.3, 0.3)).toFixed(3)}">${html}</span>`,
+      )
+      .join("");
+    return {
+      slots: {
+        agent: step(t, 0.2, arrived),
+        site: step(t, asked + PULSE, served),
+        doc,
+        "doc:meta": t >= arrived ? "200 OK" : "",
+      },
+      wires: {
+        req: wire(t, 0.1, [[asked]]),
+        res: wire(t, 0.2, [[served]]),
+      },
+      states: {
+        agent: busy(t, 0.2, asked),
+        site: busy(t, asked + PULSE, served),
+      },
+    };
+  },
+};
+
+const TRACE: [GlyphKey, string, string, string, number][] = [
+  ["swap", "request", "POST /eve", "streaming", 120],
+  ["model", "model", "plan the reply", "2 tool calls", 640],
+  ["search", "search_docs", 'q: "refunds"', "3 matches", 140],
+  ["file", "list_projects", 'status: "active"', "2 rows", 90],
+];
+const agentsObserve: FigureSpec = {
+  duration: 0.4 + TRACE.length * BEAT + HOLD,
+  stage: CARD,
+  label:
+    "One agent run traced end to end: the request, the model, and each tool call with its result and duration",
+  panels: [{ id: "run", x: 0, y: 0, ...CARD, title: "Run · support" }],
+  wires: {},
+  frame(t) {
+    let done = 0;
+    const rows = TRACE.map(([icon, name, args, result, ms], i) => {
+      const start = 0.4 + i * BEAT;
+      const end = start + BEAT * 0.75;
+      const finished = t >= end;
+      if (finished) done++;
+      return row(
+        icon,
+        name,
+        esc(finished ? `${args} → ${result}` : args),
+        finished ? `${ms} ms` : "",
+        step(t, start, end),
+        t >= start && !finished ? "bf-von" : t < start ? "bf-item--wait" : "",
+      );
+    }).join("");
+    return {
+      slots: { run: rows, "run:meta": `${done} / ${TRACE.length}` },
+      wires: {},
+      states: {},
+    };
+  },
+};
+
 export const FIGURES: Record<FigureKind, FigureSpec> = {
   integration,
   agents,
@@ -1054,6 +1541,12 @@ export const FIGURES: Record<FigureKind, FigureSpec> = {
   "webmcp-code": webmcpCode,
   "agents-code": agentsCode,
   viby,
+  "agents-flow": agentsFlow,
+  "agents-flow-stacked": agentsFlowStacked,
+  "agents-deploy": agentsDeploy,
+  "agents-connect": agentsConnect,
+  "agents-site": agentsSite,
+  "agents-observe": agentsObserve,
 };
 
 /** SVG path with rounded elbows through the given stage points. */

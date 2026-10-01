@@ -1,4 +1,11 @@
-export function AgentWaitlist({ source = "blog" }: { source?: "blog" | "agents" }) {
+export function AgentWaitlist({
+  source = "blog",
+  note = true,
+}: {
+  source?: "blog" | "agents";
+  /** Show the line explaining what the email is used for under the field. */
+  note?: boolean;
+}) {
   return (
     <div data-agent-waitlist-root>
       <form
@@ -18,13 +25,17 @@ export function AgentWaitlist({ source = "blog" }: { source?: "blog" | "agents" 
             placeholder="you@example.com"
             maxLength={200}
             required
-            aria-describedby="agent-waitlist-note agent-waitlist-status"
+            aria-describedby={
+              note ? "agent-waitlist-note agent-waitlist-status" : "agent-waitlist-status"
+            }
           />
           <button type="submit">Join the waitlist</button>
         </div>
-        <p id="agent-waitlist-note" className="agent-waitlist-note">
-          Updates from Farming Labs about agent infrastructure and early access.
-        </p>
+        {note ? (
+          <p id="agent-waitlist-note" className="agent-waitlist-note">
+            Updates from Farming Labs about agent infrastructure and early access.
+          </p>
+        ) : null}
         <p
           id="agent-waitlist-status"
           className="agent-waitlist-status"

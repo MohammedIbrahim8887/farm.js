@@ -1,4 +1,12 @@
-import { Bot, Monitor, RadioTower, Smartphone } from "lucide-react";
+import {
+  Bot,
+  FileText,
+  MessageSquare,
+  Monitor,
+  RadioTower,
+  Smartphone,
+  Wrench,
+} from "lucide-react";
 import { siCloudflare, siStripe } from "simple-icons";
 import type { CSSProperties, ReactNode } from "react";
 import { FIGURES, STAGE, roundPath, type FigureKind, type IconKey } from "./figure-scripts";
@@ -24,6 +32,9 @@ const ICONS: Record<IconKey, ReactNode> = {
   phone: <Smartphone aria-hidden strokeWidth={1.5} />,
   browser: <Monitor aria-hidden strokeWidth={1.5} />,
   relay: <RadioTower aria-hidden strokeWidth={1.5} />,
+  chat: <MessageSquare aria-hidden strokeWidth={1.5} />,
+  tool: <Wrench aria-hidden strokeWidth={1.5} />,
+  page: <FileText aria-hidden strokeWidth={1.5} />,
 };
 
 /**
@@ -60,7 +71,7 @@ export function BlogFigure({
         {spec.panels.map((panel) => (
           <div
             key={panel.id}
-            className={`bf-panel${panel.icon ? " bf-node" : ""}${panel.code ? " bf-panel--code" : ""}`}
+            className={`bf-panel${panel.flow ? " bf-flow" : panel.icon ? " bf-node" : ""}${panel.code ? " bf-panel--code" : ""}`}
             data-panel={panel.id}
             data-state={last.states?.[panel.id]}
             style={{
@@ -70,7 +81,26 @@ export function BlogFigure({
               height: pct(panel.h, stage.h),
             }}
           >
-            {panel.icon ? (
+            {panel.flow ? (
+              <>
+                <span className="bf-flow-icon">{panel.icon ? ICONS[panel.icon] : null}</span>
+                <span className="bf-flow-text">
+                  <span className="bf-flow-kicker">{panel.kicker}</span>
+                  {panel.badges ? (
+                    <span className="bf-flow-title bf-flow-badges" aria-label={panel.label}>
+                      {panel.badges.map(([icon, name]) => (
+                        <span className="bf-badge" key={name}>
+                          {ICONS[icon]}
+                          {name}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="bf-flow-title">{panel.label}</span>
+                  )}
+                </span>
+              </>
+            ) : panel.icon ? (
               <>
                 <span className="bf-icon">{ICONS[panel.icon]}</span>
                 <span className="bf-label">{panel.label}</span>

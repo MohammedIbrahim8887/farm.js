@@ -1,3 +1,5 @@
+import { BlogFigure } from "../blog/figures";
+
 // A curved, woven lattice, identical in SSR and the browser.
 // Motion is CSS-only and shares the blog's offscreen/background pause lifecycle.
 // Cover the 1320px page rail without stretching the monospace glyphs.
@@ -33,20 +35,11 @@ export function AgentArtwork() {
           </span>
         ))}
       </pre>
-      <div className="agent-network">
-        <span className="agent-network-node">[ Your app ]</span>
-        <pre className="agent-network-path">{"│\n│\n↓"}</pre>
-        <span className="agent-network-center font-geist-pixel">Farm.js</span>
-        <pre className="agent-network-fork">
-          {
-            "│\n┌──────────────┼──────────────┐\n│              │              │\n↓              ↓              ↓"
-          }
-        </pre>
-        <div className="agent-network-targets">
-          <span>Agents</span>
-          <span>MCP</span>
-          <span>Your site</span>
-        </div>
+      <div className="agent-flow agent-flow--wide">
+        <BlogFigure fit kind="agents-flow" />
+      </div>
+      <div className="agent-flow agent-flow--stacked">
+        <BlogFigure fit kind="agents-flow-stacked" />
       </div>
       <div className="agent-art-caption agent-art-caption--bottom">
         <span>Deploy · Connect · Observe</span>

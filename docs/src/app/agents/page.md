@@ -21,7 +21,7 @@ Every Farm.js v0.1.0 app can run an agent, answer agents in Markdown, and expose
 From your codebase to the agent web. We're building a home for your agents, their tools, and the websites they work with. Connected through the framework you already use.
 
 - **Deploy agents.** Manage agents alongside your app and follow their lifecycle.
-- **Deploy MCP servers.** Connect to compatible clients, agents, and services you choose, with access you explicitly allow.
+- **Deploy MCP servers.** Connect compatible clients to them, and gather your servers behind a single tool that orchestrates them on each client's behalf, with access you explicitly allow.
 - **Make websites agent-ready.** Publish readable content and discoverable tool descriptions so compatible agents can understand your site, call approved actions, and receive results.
 - **Observe runs.** Follow tool calls, logs, and failures from request to response.
 

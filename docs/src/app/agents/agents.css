@@ -62,21 +62,51 @@
   font-weight: 300;
   line-height: 1.75;
 }
+/* Hero signup: the email field and button share one bordered bar in the page's mono style. */
 .agents-signup {
   max-width: 30rem;
   margin: 32px auto 0;
   scroll-margin-top: 80px;
 }
-.agents-signup-heading {
-  color: #d0d0d0;
-  font-size: 13px;
-  font-weight: 400;
-}
 .agents-signup .agent-waitlist {
-  border: 0;
+  margin: 0;
   padding: 0;
-  margin: 18px 0 0;
+  border: 0;
   text-align: left;
+}
+.agents-signup .agent-waitlist label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.agents-signup .agent-waitlist-row {
+  flex-direction: row;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--farm-line);
+  background: #050505;
+  transition: border-color 160ms;
+}
+.agents-signup .agent-waitlist-row:focus-within {
+  border-color: rgb(255 255 255 / 0.4);
+}
+.agents-signup .agent-waitlist input {
+  border: 0;
+  background: transparent;
+  font-size: 15px;
+}
+.agents-signup .agent-waitlist input:focus-visible {
+  outline: none;
+}
+.agents-signup .agent-waitlist button {
+  min-width: 0;
+  padding: 0 18px;
+}
+.agents-signup :is(.agent-waitlist-note, .agent-waitlist-status) {
+  text-align: center;
 }
 .agent-artwork {
   position: relative;
@@ -87,6 +117,37 @@
   border-top: 1px solid var(--farm-line);
   background: #000;
   font-family: var(--font-geist-mono), monospace;
+}
+/* The Farm.js diagram sits on the clear centre of the lattice, between the captions:
+   side by side on wide screens, stacked on phones so the type stays legible. */
+.agent-flow {
+  position: relative;
+  z-index: 1;
+  width: min(660px, calc(100% - 48px));
+  margin-inline: auto;
+  padding: 88px 24px;
+  box-sizing: content-box;
+}
+.agent-flow--stacked {
+  display: none;
+  width: min(400px, calc(100% - 48px));
+}
+@media (max-width: 640px) {
+  .agent-flow--wide {
+    display: none;
+  }
+  .agent-flow--stacked {
+    display: block;
+    padding: 72px 24px;
+  }
+}
+/* Every illustration on this page: soft 1px borders, one radius, a gentle active state. */
+.farm-agents .bf-panel {
+  border-color: rgb(255 255 255 / 0.12);
+  border-radius: 6px;
+}
+.farm-agents .bf-panel[data-state="hot"] {
+  border-color: rgb(255 255 255 / 0.3);
 }
 .agent-art-caption {
   position: absolute;
@@ -107,6 +168,8 @@
 }
 .agent-ascii-field {
   position: absolute;
+  /* Quiet enough that the Farm.js diagram in front of it leads. */
+  opacity: 0.42;
   z-index: -1;
   top: 50%;
   left: 50%;
@@ -139,44 +202,6 @@
 }
 .agent-artwork[data-motion="running"] .agent-ascii-row {
   animation-play-state: running;
-}
-.agent-network {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  color: #ddd;
-  font-size: 12px;
-}
-.agent-network-node,
-.agent-network-targets span {
-  padding: 6px 9px;
-  background: #030303;
-  font-size: 10px;
-  text-transform: uppercase;
-}
-.agent-network-center {
-  padding: 4px 20px 10px;
-  background: #030303;
-  font-size: 50px;
-  line-height: 1.15;
-}
-.agent-network pre {
-  color: #aaa;
-  margin: 0;
-  padding: 0;
-  font: inherit;
-  line-height: 1.5;
-  text-align: center;
-}
-.agent-network-targets {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  justify-items: center;
-  width: 45ch;
-  max-width: 100%;
 }
 .agents-section-heading {
   display: grid;
@@ -219,6 +244,36 @@
 .agents-capabilities article:nth-child(n + 3),
 .agents-now article:nth-child(n + 3) {
   border-top: 1px solid var(--farm-line);
+}
+/* Each card's illustration sits in the landing page's feature spotlight, bleeding to the card edges. */
+.agents-card-visual {
+  margin: 36px -48px -56px;
+  padding: 40px 48px 48px;
+  overflow: hidden;
+}
+.agents-card-figure {
+  position: relative;
+  z-index: 1;
+}
+/* The landing spotlight, centred behind each illustration instead of the card's top-left corner. */
+.agents-card-visual.farm-feature-spotlight {
+  background-image: radial-gradient(
+    ellipse 72% 58% at 50% 50%,
+    rgb(255 255 255 / 0.05),
+    rgb(255 255 255 / 0.015) 45%,
+    transparent 78%
+  );
+}
+.agents-card-visual.farm-feature-spotlight::before {
+  inset: 16% 12%;
+  transform: none;
+}
+.agents-card-visual.farm-feature-spotlight::after {
+  display: none;
+}
+/* Every card description holds three lines, so the illustrations below line up across the grid. */
+.agents-capabilities article > p {
+  min-height: calc(1.85em * 3);
 }
 .agents-capabilities h3,
 .agents-now h3 {
@@ -313,6 +368,10 @@
   .agents-now article {
     padding: 40px 32px 48px;
   }
+  .agents-card-visual {
+    margin: 32px -32px -48px;
+    padding: 32px 32px 40px;
+  }
   .agents-capabilities h3,
   .agents-now h3 {
     font-size: 25px;
@@ -325,22 +384,10 @@
   .agents-intro {
     font-size: 16px;
   }
-  .agents-signup .agent-waitlist-row {
-    flex-direction: column;
-  }
   .agent-art-caption {
     left: 24px;
     right: 24px;
     font-size: 8px;
-  }
-  .agent-network {
-    font-size: 10px;
-  }
-  .agent-network-center {
-    font-size: 42px;
-  }
-  .agent-network-targets span {
-    font-size: 9px;
   }
   .agents-capabilities,
   .agents-now {
@@ -355,6 +402,10 @@
   .agents-capabilities article,
   .agents-now article {
     padding: 36px 24px 40px;
+  }
+  .agents-card-visual {
+    margin: 28px -24px -40px;
+    padding: 28px 24px 32px;
   }
   .agents-capabilities article + article,
   .agents-now article + article {
