@@ -7,8 +7,8 @@ export const launchPost = {
   authorUrl: "https://x.com/KinfishT",
   organization: "Farming Labs",
   organizationUrl: "https://github.com/farming-labs",
-  date: "Sep 2026",
-  dateTime: "2026-09",
+  date: "Oct 2026",
+  dateTime: "2026-10-01",
   category: "Release",
 } as const;
 

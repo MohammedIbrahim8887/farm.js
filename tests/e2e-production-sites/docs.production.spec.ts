@@ -44,7 +44,8 @@ test("blog connects the index, article, contents, and Markdown mirror", async ({
   await expect(page.locator(".blog-featured h3")).toHaveCSS("text-wrap", "balance");
   await expect(page.getByRole("link", { name: /Follow the releases/i })).toHaveCount(0);
   await expect(page.locator(".blog-art-version")).toHaveAttribute("data-version", "v 0.1.0");
-  await expect(page.locator(".blog-post-meta time")).toHaveText("Sep 2026");
+  await expect(page.locator(".blog-post-meta time")).toHaveText("Oct 2026");
+  await expect(page.locator(".blog-post-meta time")).toHaveAttribute("datetime", "2026-10-01");
   await expect(page.locator(".blog-post-meta time")).toHaveCSS("font-family", /Geist Sans/);
   await expect(page.locator(".blog-author-profile")).toHaveAttribute(
     "href",

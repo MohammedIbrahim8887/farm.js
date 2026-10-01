@@ -5,7 +5,7 @@ description: "Our first stable release. Built for apps and agents."
 
 # Farm.js v0.1.0: Stable, Integrated, and Agent-Native
 
-KinfeMichael Tariku · Sep 2026
+KinfeMichael Tariku · Oct 2026
 
 Farm.js 0.1 is out. It is the first release with a compatibility promise, and the first one I am comfortable calling stable.
 
@@ -157,7 +157,7 @@ Already have a CMS? A `remote()` source can feed the same pipeline from an API o
 - `farm explain /some/path` tells you which route handles a URL and where it runs.
 - `farm preview` gives your local app a public URL for webhooks, OAuth callbacks, and testing on a phone.
 - `farm migrate next` and `farm migrate tanstack` move an existing Next.js App Router or TanStack Start project over. Nuxt and SvelteKit have migration guides.
-- `farm upgrade --latest` keeps every Farm package on the same release.
+- `farm upgrade --latest` updates each Farm package to its latest published version, preserving independently versioned renderer and plugin releases.
 
 <BlogFigure kind="preview" caption="farm preview gives localhost a public URL for phones, teammates, and webhooks" />
 
@@ -190,7 +190,7 @@ Discovery describes what an app offers. It does **not** create an MCP server or 
 
 **Reuse an API route, define a tool without a route, or compose both.** Top-level `mcp` config brings them into one Streamable HTTP server with a shared authorization policy. Endpoint-backed tools keep the validation, middleware, and handler your app already uses. Standalone tools use `defineTool()` for operations that do not need their own HTTP endpoint.
 
-**Source preview:** This includes [MCP composition and shared authorization from #1608](https://github.com/farming-labs/farm.js/pull/1608), with [validated tool results from #1611](https://github.com/farming-labs/farm.js/pull/1611). It requires the optional `@farm.js/mcp` runtime, whose npm package is not published yet as of September 30, 2026. MCP remains experimental; start with the repository's [runnable example](https://github.com/farming-labs/farm.js/tree/main/examples/api-mcp).
+This includes [MCP composition and shared authorization from #1608](https://github.com/farming-labs/farm.js/pull/1608), with [validated tool results from #1611](https://github.com/farming-labs/farm.js/pull/1611). It requires the optional `@farm.js/mcp` runtime. MCP remains experimental; start with the [setup guide](https://farmjs.dev/docs/plugins/mcp) and the repository's [runnable example](https://github.com/farming-labs/farm.js/tree/main/examples/api-mcp).
 
 ### Keep the API route authoritative
 
