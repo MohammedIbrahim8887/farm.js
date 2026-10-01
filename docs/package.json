@@ -9,7 +9,8 @@
     "preview": "farm preview",
     "test": "vitest run",
     "prisma:generate": "DATABASE_URL=${DATABASE_URL:-postgresql://user:password@localhost:5432/farmjs} node ../scripts/run-prisma-generate.mjs",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:waitlist": "pnpm run prisma:generate && node --env-file-if-exists=.env.local scripts/setup-waitlist.mjs"
   },
   "dependencies": {
     "@databuddy/sdk": "2.6.0",
@@ -25,6 +26,7 @@
     "lucide-react": "1.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "shiki": "4.3.1",
     "simple-icons": "16.25.0",
     "sugar-high": "0.9.5",
     "zod": "^4.3.6"

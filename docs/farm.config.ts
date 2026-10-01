@@ -5,6 +5,9 @@ import { withDocs } from "@farming-labs/farmjs/config";
 export default withDocs(
   defineConfig({
     plugins: [devtools()],
+    mdx: {
+      components: "./src/markdown-components.tsx",
+    },
     async headers() {
       return [
         {

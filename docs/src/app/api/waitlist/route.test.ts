@@ -9,8 +9,8 @@ const prismaMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../lib/prisma", () => ({
-  getPrisma: async () => {
-    if (!process.env.DATABASE_URL) {
+  getWaitlistPrisma: async () => {
+    if (!process.env.WAITLIST_DATABASE_URL && !process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL is not configured");
     }
     return { waitlistEntry: prismaMocks };
@@ -18,9 +18,11 @@ vi.mock("../../../lib/prisma", () => ({
 }));
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
+const originalWaitlistDatabaseUrl = process.env.WAITLIST_DATABASE_URL;
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
+  delete process.env.WAITLIST_DATABASE_URL;
   consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   prismaMocks.upsert.mockReset();
   prismaMocks.upsert.mockResolvedValue({ id: "test-id" });
@@ -30,6 +32,8 @@ afterEach(() => {
   consoleErrorSpy.mockRestore();
   if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
   else process.env.DATABASE_URL = originalDatabaseUrl;
+  if (originalWaitlistDatabaseUrl === undefined) delete process.env.WAITLIST_DATABASE_URL;
+  else process.env.WAITLIST_DATABASE_URL = originalWaitlistDatabaseUrl;
 });
 
 function waitlistRequest(body: unknown): Request {
@@ -123,6 +127,50 @@ describe("waitlist signup endpoint", () => {
   });
 
   describe("successful signups (handler treats ctx.body as already-validated)", () => {
+    it("accepts signups with only a dedicated waitlist database configured", async () => {
+      delete process.env.DATABASE_URL;
+      process.env.WAITLIST_DATABASE_URL = "postgresql://test/waitlist";
+      const response = await invokeAPIRouteEndpoint(
+        POST,
+        waitlistRequest({ email: "dedicated@example.com", description: "Agent infrastructure" }),
+      );
+      await expect(response.json()).resolves.toEqual({ ok: true, id: "test-id" });
+      expect(prismaMocks.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it("accepts the blog's agent infrastructure signup using the existing schema", async () => {
+      process.env.DATABASE_URL = "postgresql://test/farmjs";
+      const description = "Agent infrastructure early access — Farm.js v0.1.0 blog";
+      const response = await invokeAPIRouteEndpoint(
+        POST,
+        waitlistRequest({ email: "agent-reader@example.com", description }),
+      );
+
+      await expect(response.json()).resolves.toEqual({ ok: true, id: "test-id" });
+      expect(prismaMocks.upsert).toHaveBeenCalledWith({
+        where: { email: "agent-reader@example.com" },
+        update: { description },
+        create: { email: "agent-reader@example.com", description },
+        select: { id: true },
+      });
+    });
+
+    it("accepts a signup from the dedicated agents page", async () => {
+      process.env.DATABASE_URL = "postgresql://test/farmjs";
+      const description = "Agent infrastructure early access — Farm.js agents page";
+      const response = await invokeAPIRouteEndpoint(
+        POST,
+        waitlistRequest({ email: "agents-page@example.com", description }),
+      );
+      await expect(response.json()).resolves.toEqual({ ok: true, id: "test-id" });
+      expect(prismaMocks.upsert).toHaveBeenCalledWith({
+        where: { email: "agents-page@example.com" },
+        update: { description },
+        create: { email: "agents-page@example.com", description },
+        select: { id: true },
+      });
+    });
+
     it("accepts a valid signup and returns the persisted entry id", async () => {
       process.env.DATABASE_URL = "postgresql://test/farmjs";
 
@@ -156,6 +204,20 @@ describe("waitlist signup endpoint", () => {
   });
 
   describe("database failures (the reachable { ok: false } branch)", () => {
+    it("does not report a configured dedicated database as missing when it is unavailable", async () => {
+      delete process.env.DATABASE_URL;
+      process.env.WAITLIST_DATABASE_URL = "postgresql://test/waitlist";
+      prismaMocks.upsert.mockRejectedValueOnce(new Error("connection refused"));
+      const response = await invokeAPIRouteEndpoint(
+        POST,
+        waitlistRequest({ email: "unavailable@example.com", description: "Agent infrastructure" }),
+      );
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        error: "Could not join the waitlist yet. Please try again in a moment.",
+      });
+    });
+
     it("returns a friendly 200 envelope when the upsert fails and a database is configured", async () => {
       process.env.DATABASE_URL = "postgresql://test/farmjs";
       prismaMocks.upsert.mockRejectedValueOnce(new Error("connection refused"));
