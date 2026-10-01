@@ -23,7 +23,6 @@ import {
   Rocket,
   Route,
   Terminal,
-  Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
@@ -77,6 +76,8 @@ import { FileTree } from "../components/ui/file-tree";
 import type { FileTreeNode } from "../components/ui/file-tree";
 import { FlickeringGrid } from "../components/ui/flickering-grid";
 import { farmBenchmark, formatBenchmarkDuration } from "../lib/framework-benchmark";
+import { BlogFigure } from "../components/blog/figures";
+import "../components/blog/figures.css";
 
 const homepageTitle = "Farm.js - Framework for modern integrated apps";
 const homepageDescription =
@@ -571,42 +572,6 @@ const routeCodeTabs = [
         </main>
     );
 }`,
-  },
-] as const satisfies readonly [HighlightedCodeTab, ...HighlightedCodeTab[]];
-
-const agentRuntimeCodeTabs = [
-  {
-    id: "eve",
-    label: "Eve / farm.config.ts",
-    language: "ts",
-    highlightLines: [5, 8],
-    code: `import { eve } from "@farm.js/eve";
-
-export default defineConfig({
-    integrations: {
-        agent: eve(),
-    },
-    deploy: {
-        target: "vercel",
-    },
-});`,
-  },
-  {
-    id: "cloudflare",
-    label: "Cloudflare / farm.config.ts",
-    language: "ts",
-    highlightLines: [5, 8, 9],
-    code: `import { cfAgent } from "@farm.js/cf-agent";
-
-export default defineConfig({
-    integrations: {
-        agent: cfAgent(),
-    },
-    deploy: {
-        target: "cloudflare",
-        preset: "cloudflare-module",
-    },
-});`,
   },
 ] as const satisfies readonly [HighlightedCodeTab, ...HighlightedCodeTab[]];
 
@@ -1679,12 +1644,11 @@ function MarkdownMirrorsVisual() {
 
 function AgentRuntimeVisual() {
   return (
-    <FoundationCodeTabsVisual
-      compact
-      id="farm-agent-runtime-code"
-      tabs={agentRuntimeCodeTabs}
-      tabsLabel="Farm agent runtime examples"
-    />
+    <div className="farm-feature-spotlight relative flex min-h-[328px] min-w-0 items-center overflow-hidden px-6 py-8 sm:px-10">
+      <div className="relative z-10 w-full">
+        <BlogFigure fit kind="agents" />
+      </div>
+    </div>
   );
 }
 
@@ -1801,69 +1765,11 @@ function FoundationGrid() {
 
 function AgentRuntimeIllustration() {
   return (
-    <figure className="farm-feature-spotlight farm-agent-spotlight relative mx-auto h-[248px] w-full max-w-[28rem] overflow-hidden md:mx-0 md:h-[280px]">
-      <figcaption className="sr-only">
-        Farm connects the application origin to Eve on Vercel and Cloudflare Agents on Workers.
-      </figcaption>
-
-      <div className="relative z-10 grid h-full grid-cols-[minmax(0,0.82fr)_3rem_minmax(0,1.18fr)] items-center px-2 sm:px-4">
-        <div className="border border-white/10 bg-black/80 p-3 sm:p-4">
-          <div className="flex items-center gap-2 font-mono text-[10px] font-normal uppercase tracking-normal text-white/72">
-            <Route aria-hidden className="size-3.5" strokeWidth={1.5} />
-            Farm app
-          </div>
-          <div className="mt-3 border-t border-white/8 pt-3">
-            <span className="block font-mono text-[8px] font-normal uppercase tracking-normal text-white/34 sm:text-[9px]">
-              Same origin
-            </span>
-            <code className="mt-1 block font-mono text-xs text-white/86">/</code>
-          </div>
-        </div>
-
-        <div aria-hidden className="relative h-[184px]">
-          <span className="absolute left-0 top-1/2 h-px w-1/2 bg-white/22" />
-          <span className="absolute bottom-1/4 left-1/2 top-1/4 w-px bg-white/22" />
-          <span className="absolute left-1/2 right-0 top-1/4 h-px bg-white/22" />
-          <span className="absolute bottom-1/4 left-1/2 right-0 h-px bg-white/22" />
-          <span className="absolute left-1/2 top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 bg-white" />
-          <span className="absolute right-0 top-1/4 size-1 -translate-y-1/2 bg-white/52" />
-          <span className="absolute bottom-1/4 right-0 size-1 translate-y-1/2 bg-white/52" />
-        </div>
-
-        <div className="grid h-[184px] grid-rows-2 gap-3">
-          <div className="border border-white/10 bg-black/80 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-2 font-mono text-[9px] font-normal uppercase tracking-normal text-white/76 sm:text-[10px]">
-                <Workflow aria-hidden className="size-3.5 shrink-0" strokeWidth={1.5} />
-                Eve
-              </span>
-              <BrandIcon className="size-3.5 opacity-52" src={vercelIconUrl} />
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-2 border-t border-white/8 pt-2">
-              <code className="font-mono text-[9px] text-white/76">/eve/*</code>
-              <span className="font-mono text-[8px] font-normal uppercase tracking-normal text-white/32">
-                Vercel
-              </span>
-            </div>
-          </div>
-
-          <div className="border border-white/10 bg-black/80 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-2 font-mono text-[9px] font-normal uppercase tracking-normal text-white/76 sm:text-[10px]">
-                <BrandIcon className="size-3.5 shrink-0 opacity-72" src={cloudflareIconUrl} />
-                <span className="truncate">Cloudflare Agents</span>
-              </span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-2 border-t border-white/8 pt-2">
-              <code className="font-mono text-[9px] text-white/76">/agents/*</code>
-              <span className="font-mono text-[8px] font-normal uppercase tracking-normal text-white/32">
-                Workers
-              </span>
-            </div>
-          </div>
-        </div>
+    <div className="farm-feature-spotlight farm-agent-spotlight relative mx-auto w-full max-w-[28rem] md:mx-0">
+      <div className="relative z-10 w-full">
+        <BlogFigure fit kind="runtimes" />
       </div>
-    </figure>
+    </div>
   );
 }
 
@@ -1936,73 +1842,53 @@ function VibyCallout() {
         <IndexedLabel icon={Terminal} index="04" label="Built with Farm.js" />
       </div>
 
-      <div className="grid min-w-0 items-center gap-8 overflow-hidden bg-black px-6 py-10 sm:px-10 sm:py-12 md:grid-cols-[minmax(0,1fr)_minmax(17rem,24rem)] lg:min-h-[360px] lg:gap-10 lg:px-12">
-        <div className="max-w-lg">
-          <p className="font-mono text-[10px] font-normal uppercase tracking-normal text-white/38">
-            Farm.js in the wild
-          </p>
-          <h2 className="mt-4 text-balance text-3xl font-medium leading-[1.06] tracking-normal text-white sm:text-4xl">
+      <div className="grid min-w-0 items-center gap-10 overflow-hidden bg-black px-6 py-10 sm:px-10 sm:py-12 lg:min-h-[420px] lg:px-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]">
+        <div className="max-w-xl">
+          <h2 className="text-balance text-3xl font-medium leading-[1.06] tracking-normal text-white sm:text-4xl">
             Vibe coding, powered by Farm.js
           </h2>
           <p className="mt-5 text-sm leading-6 text-white/48 sm:text-base sm:leading-7">
-            Viby is open-source infrastructure for persistent, skill-guided vibe coding products,
-            built and shipped with Farm.js.
+            <span className="font-mono text-white">
+              <span aria-hidden className="text-white/40">
+                &rsaquo;_{" "}
+              </span>
+              viby
+            </span>{" "}
+            is open-source infrastructure for AI app builders.
           </p>
-          <div className="mt-8 flex items-center">
-            <ButtonLink
-              href="https://viby.farming-labs.dev"
-              icon={<Terminal aria-hidden className="size-4" strokeWidth={1.5} />}
-            >
-              Explore Viby
-            </ButtonLink>
+          <div className="mt-6 flex h-11 max-w-md items-center gap-2 rounded-sm bg-white/[0.05] px-4 font-mono text-[13px] text-white">
+            <span aria-hidden className="text-white/36">
+              $
+            </span>
+            <code>pnpm add @viby/sdk</code>
+          </div>
+          <div className="mt-4 max-w-md font-mono text-[13px]">
+            {[
+              ["SDK", "viby.farming-labs.dev"],
+              ["Demo", "viby-app.farming-labs.dev"],
+            ].map(([kind, host], index) => (
+              <a
+                key={host}
+                className={`group flex h-11 items-center gap-4 ${index ? "border-t border-white/8 " : ""}text-white/80 transition-colors duration-150 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white`}
+                href={`https://${host}`}
+              >
+                <span className="w-12 text-[9px] uppercase tracking-[0.08em] text-white/34">
+                  {kind}
+                </span>
+                <span className="min-w-0 truncate">{host}</span>
+                <ArrowUpRight
+                  aria-hidden
+                  className="ml-auto size-3.5 text-white/40 transition-[color,transform] duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white"
+                  strokeWidth={1.5}
+                />
+              </a>
+            ))}
           </div>
         </div>
 
-        <a
-          aria-label="Explore Viby, a vibe coding product built with Farm.js"
-          className="group block min-w-0 border border-white/12 bg-white/[0.025] transition-[background-color,border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-white/24 hover:bg-white/[0.045] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
-          href="https://viby.farming-labs.dev"
-        >
-          <div className="flex h-11 items-center justify-between border-b border-white/10 px-4 font-mono text-[10px] tracking-normal">
-            <span className="flex items-center gap-2 text-white/88">
-              <span aria-hidden className="text-white/46">
-                &rsaquo;_
-              </span>
-              <span>viby</span>
-            </span>
-            <span className="text-[8px] uppercase text-white/34">Farm.js / live</span>
-          </div>
-
-          <div aria-hidden className="p-4 sm:p-5">
-            <span className="font-mono text-[8px] uppercase tracking-normal text-white/30">
-              Prompt
-            </span>
-            <p className="mt-2 border-l border-white/20 pl-3 font-mono text-[11px] leading-5 text-white/72">
-              Build a polished analytics dashboard with filters
-            </p>
-
-            <div className="mt-5 grid gap-2 font-mono text-[9px] tracking-normal">
-              {["src/app/page.tsx", "src/components/chart.tsx", "src/styles.css"].map((file) => (
-                <div
-                  key={file}
-                  className="flex min-w-0 items-center justify-between gap-3 border-t border-white/8 pt-2"
-                >
-                  <span className="truncate text-white/48">{file}</span>
-                  <span className="shrink-0 uppercase text-white/76">generated</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex h-10 items-center justify-between border-t border-white/10 px-4 font-mono text-[8px] uppercase tracking-normal text-white/36">
-            <span className="flex items-center gap-2">
-              <span className="size-1.5 bg-white/72" /> Preview ready
-            </span>
-            <span className="flex items-center gap-1.5 text-white/58 transition-colors duration-150 group-hover:text-white">
-              Open Viby <ArrowUpRight aria-hidden className="size-3" strokeWidth={1.5} />
-            </span>
-          </div>
-        </a>
+        <div className="min-w-0">
+          <BlogFigure fit kind="viby" />
+        </div>
       </div>
     </section>
   );
