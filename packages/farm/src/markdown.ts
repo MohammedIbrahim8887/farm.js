@@ -203,6 +203,22 @@ export function applyMarkdownNegotiationHeaders(
   });
 }
 
+// Wraps the index of a code block set aside during conversion. NUL is not
+// valid in HTML text, so rendered pages do not produce this placeholder.
+const CODE_BLOCK_MARK = "\u0000";
+const CODE_BLOCK_PLACEHOLDER = /\u0000(\d+)\u0000/g;
+
+// Elements that start a new block. Their text belongs on its own line.
+const BLOCK_TAGS =
+  /<\/?(ul|ol|main|section|article|header|footer|nav|aside|div|form|fieldset|legend|figure|figcaption|table|thead|tbody|tfoot|tr|dl|dt|dd|details|summary|address)\b[^>]*>/gi;
+
+// Elements a browser always lays out as their own box, so they never sit inside
+// a word and a separator is safe. Without one, `<label>Token</label><button>Open
+// </button>` read as "TokenOpen". Inline wrappers such as span, a, or em stay
+// joined because animations and markup split single words across them.
+const BOX_TAGS =
+  /<\/?(label|button|input|select|textarea|option|output|meter|progress|td|th)\b[^>]*>/gi;
+
 export function htmlToMarkdown(
   html: string,
   options: {
@@ -218,12 +234,26 @@ export function htmlToMarkdown(
     .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, "")
     .replace(/<!--[\s\S]*?-->/g, "");
 
-  source = source.replace(/<pre\b[^>]*><code\b[^>]*>([\s\S]*?)<\/code><\/pre>/gi, (_, code) => {
-    return `\n\n\`\`\`\n${decodeHtml(stripTags(code)).trim()}\n\`\`\`\n\n`;
-  });
-  source = source.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, (_, code) => {
-    return `\n\n\`\`\`\n${decodeHtml(stripTags(code)).trim()}\n\`\`\`\n\n`;
-  });
+  // Code blocks are set aside behind placeholders so the tidying below never
+  // touches them, and each gets a fence longer than any backtick run inside it,
+  // so code that itself shows ``` fences cannot close the block early.
+  const codeBlocks: string[] = [];
+  const setAsideCodeBlock = (_: string, code: string) => {
+    const content = decodeHtml(stripTags(code)).trim();
+    // A reduce, not Math.max(...runs): a large block can exceed the argument limit.
+    const longestRun = (content.match(/`+/g) ?? []).reduce(
+      (longest, run) => Math.max(longest, run.length),
+      0,
+    );
+    const fence = "`".repeat(Math.max(3, longestRun + 1));
+    codeBlocks.push(`${fence}\n${content}\n${fence}`);
+    return `\n\n${CODE_BLOCK_MARK}${codeBlocks.length - 1}${CODE_BLOCK_MARK}\n\n`;
+  };
+  source = source.replace(
+    /<pre\b[^>]*><code\b[^>]*>([\s\S]*?)<\/code><\/pre>/gi,
+    setAsideCodeBlock,
+  );
+  source = source.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, setAsideCodeBlock);
   source = source.replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, content) => {
     return `\n\n${"#".repeat(Number(level))} ${toInlineMarkdown(content).trim()}\n\n`;
   });
@@ -231,10 +261,23 @@ export function htmlToMarkdown(
     return `\n\n${toInlineMarkdown(content).trim()}\n\n`;
   });
   source = source.replace(/<blockquote\b[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, content) => {
+    // Code blocks inside were already set aside by this call; the nested call
+    // leaves their placeholders alone, and each is restored here with every
+    // line quoted, including blank lines inside the code.
     const quote = htmlToMarkdown(content, { includeMetadata: false })
       .split("\n")
       .filter((line) => line.trim().length > 0)
-      .map((line) => `> ${line}`)
+      .map((line) => {
+        const code =
+          line.startsWith(CODE_BLOCK_MARK) && line.endsWith(CODE_BLOCK_MARK)
+            ? codeBlocks[Number(line.slice(1, -1))]
+            : undefined;
+        if (code === undefined) return `> ${line}`;
+        return code
+          .split("\n")
+          .map((codeLine) => (codeLine ? `> ${codeLine}` : ">"))
+          .join("\n");
+      })
       .join("\n");
     return `\n\n${quote}\n\n`;
   });
@@ -242,16 +285,22 @@ export function htmlToMarkdown(
     return `\n- ${toInlineMarkdown(content).trim()}`;
   });
   source = source
-    .replace(/<\/?(ul|ol|main|section|article|header|footer|nav|aside|div)\b[^>]*>/gi, "\n")
+    .replace(BLOCK_TAGS, "\n")
+    .replace(BOX_TAGS, " ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<hr\s*\/?>/gi, "\n\n---\n\n");
 
+  // Collapse the spacing that tag separators and indented source HTML leave
+  // behind (four leading spaces would read as a code block), then restore the
+  // code blocks set aside above, untouched.
   let markdown = stripTags(source)
     .split("\n")
-    .map((line) => line.replace(/[ \t]+$/g, ""))
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .trim()
+    // Placeholders this call did not create belong to an outer call (a blockquote).
+    .replace(CODE_BLOCK_PLACEHOLDER, (match, index: string) => codeBlocks[Number(index)] ?? match);
 
   if (options.includeMetadata !== false) {
     const metadata: string[] = [];
@@ -467,7 +516,9 @@ function toInlineMarkdown(html: string): string {
     .replace(/<code\b[^>]*>([\s\S]*?)<\/code>/gi, (_, content) => {
       return `\`${decodeHtml(stripTags(content)).trim()}\``;
     })
-    .replace(/<br\s*\/?>/gi, "\n");
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(BLOCK_TAGS, " ")
+    .replace(BOX_TAGS, " ");
 
   source = stripTags(source);
   return decodeHtml(source).replace(/\s+/g, " ");

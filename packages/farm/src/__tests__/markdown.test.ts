@@ -316,6 +316,84 @@ describe("htmlToMarkdown", () => {
     );
   });
 
+  it("keeps form controls and table cells from running together", () => {
+    // Reduced from farmjs.dev/telemetry, which rendered "Dashboard tokenOpen dashboard".
+    const form = htmlToMarkdown(
+      [
+        '<main><form method="post">',
+        '<label for="token">Dashboard token</label>',
+        '<input id="token" type="password" required="">',
+        '<button type="submit">Open dashboard</button>',
+        "</form></main>",
+      ].join(""),
+      { includeMetadata: false },
+    );
+    expect(form).toBe("Dashboard token Open dashboard\n");
+
+    const table = htmlToMarkdown(
+      "<main><table><tr><th>Target</th><th>Status</th></tr><tr><td>node</td><td>ready</td></tr></table></main>",
+      { includeMetadata: false },
+    );
+    // Rows stay separate paragraphs; a single newline would render as one line.
+    expect(table).toBe("Target Status\n\nnode ready\n");
+  });
+
+  it("keeps indentation inside code blocks while tidying spacing around them", () => {
+    expect(
+      htmlToMarkdown(
+        "<main><pre><code>if (ok) {\n    run();\n}</code></pre><button>Copy</button></main>",
+        {
+          includeMetadata: false,
+        },
+      ),
+    ).toBe("```\nif (ok) {\n    run();\n}\n```\n\nCopy\n");
+  });
+
+  it("keeps fenced lines inside code from leaking out of the block", () => {
+    // Docs that show fenced code put ``` lines inside a code block. They must stay
+    // inside it, and the text after the block must still be tidied.
+    expect(
+      htmlToMarkdown(
+        "<main><pre><code>```js\ncode();\n```</code></pre><p>    indented   body text</p></main>",
+        { includeMetadata: false },
+      ),
+    ).toBe("````\n```js\ncode();\n```\n````\n\nindented body text\n");
+    expect(
+      htmlToMarkdown("<main><pre><code>```\ncode();</code></pre>    indented   body text</main>", {
+        includeMetadata: false,
+      }),
+    ).toBe("````\n```\ncode();\n````\n\nindented body text\n");
+  });
+
+  it("sizes the fence of a huge code block without overflowing", () => {
+    // Spreading every backtick run into Math.max exceeds the engine's argument limit.
+    const code = "`a ".repeat(300_000);
+    expect(
+      htmlToMarkdown(`<main><pre><code>${code}</code></pre></main>`, {
+        includeMetadata: false,
+      }).split("\n", 1)[0],
+    ).toBe("```");
+  });
+
+  it("keeps code blocks inside blockquotes, quoting every line", () => {
+    expect(
+      htmlToMarkdown(
+        "<main><blockquote><p>Run this:</p><pre><code>pnpm install\n\npnpm dev</code></pre></blockquote></main>",
+        { includeMetadata: false },
+      ),
+    ).toBe("> Run this:\n> ```\n> pnpm install\n>\n> pnpm dev\n> ```\n");
+  });
+
+  it("does not split words that are only wrapped in inline elements", () => {
+    // Letter- and word-split animations wrap one word in sibling spans; without
+    // layout information they must read as the source text, not "Hel lo".
+    expect(
+      htmlToMarkdown("<p><span>Hel</span><span>lo</span> ex<strong>am</strong>ple</p>", {
+        includeMetadata: false,
+      }),
+    ).toBe("Hello ex**am**ple\n");
+  });
+
   it("prefers page content over layout chrome", () => {
     expect(
       htmlToMarkdown(
