@@ -406,6 +406,25 @@ function getMarkdownAlternatePath(pathname: string): string {
   return pathname === "/" ? "/index.md" : `${pathname}.md`;
 }
 
+/** @internal The `.md` URL that serves a page's Markdown mirror. */
+export function getFarmMarkdownMirrorPath(pathname: string): string {
+  return getMarkdownAlternatePath(pathname);
+}
+
+/** @internal Whether `pathname` has a Markdown mirror under `config`. */
+export function isFarmMarkdownMirrorExposed(
+  config: FarmMarkdownResolvedConfig | undefined,
+  pathname: string,
+): boolean {
+  if (!config?.enabled) return false;
+  return config.expose === true || findExposedMarkdownRoute(config, pathname) !== null;
+}
+
+/** @internal Matches a page pathname against a route pattern such as `/docs/[...slug]`. */
+export function matchesFarmMarkdownRoutePattern(pattern: string, pathname: string): boolean {
+  return routeMatches(pattern, pathname);
+}
+
 function appendHeaderToken(headers: Headers, name: string, token: string): void {
   const current = headers.get(name);
   if (!current) {
@@ -435,20 +454,24 @@ function routeMatches(pattern: string, pathname: string): boolean {
     return true;
   }
 
-  const escaped = pattern
-    .split("/")
-    .map((segment) => {
-      if (/^\[\.\.\.[^\]]+\]$/.test(segment)) {
-        return ".*";
-      }
-      if (/^\[[^\]]+\]$/.test(segment)) {
-        return "[^/]+";
-      }
-      return segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    })
-    .join("/");
+  let source = "";
+  pattern.split("/").forEach((segment, index) => {
+    // [[...name]] is optional: it matches the base path and anything below it.
+    if (/^\[\[\.\.\.[^\]]+\]\]$/.test(segment)) {
+      source += "(?:/.*)?";
+      return;
+    }
+    const prefix = index === 0 ? "" : "/";
+    if (/^\[\.\.\.[^\]]+\]$/.test(segment)) {
+      source += `${prefix}.*`;
+    } else if (/^\[[^\]]+\]$/.test(segment)) {
+      source += `${prefix}[^/]+`;
+    } else {
+      source += prefix + segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+  });
 
-  return new RegExp(`^${escaped}$`).test(pathname);
+  return new RegExp(`^${source}$`).test(pathname);
 }
 
 function isHtmlResponse(response: Response): boolean {

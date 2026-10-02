@@ -67,6 +67,7 @@ describe("Vercel docs content", () => {
           images: { provider: "none" },
           telemetry: false,
           deploy: { target: "vercel" },
+          agent: { llmsTxt: { title: "App index" } },
           docs: {
             adapter: false,
             entry: "/docs",
@@ -100,6 +101,22 @@ describe("Vercel docs content", () => {
       expect(markdown.status).toBe(200);
       expect(markdown.headers.get("content-type")).toContain("text/markdown");
       expect(await markdown.text()).toContain("farm upgrade --latest --dry-run");
+      // The app's own llms.txt takes /llms.txt; the docs engine keeps its well-known copy.
+      const appLlms = await handler.fetch(new Request("https://farm.test/llms.txt"));
+      expect(appLlms.status).toBe(200);
+      expect((await appLlms.text()).startsWith("# App index\n")).toBe(true);
+      const docsLlms = await handler.fetch(new Request("https://farm.test/.well-known/llms.txt"));
+      expect(docsLlms.status).toBe(200);
+      const docsLlmsText = await docsLlms.text();
+      expect(docsLlmsText).not.toContain("# App index");
+      // The docs engine's own index, which lists the fixture's docs pages.
+      expect(docsLlmsText).toContain("Upgrading");
+      expect(docsLlmsText).toContain("/docs/upgrading");
+      // The docs engine also serves /llms-full.txt; agent.llmsTxt takes that path too.
+      const appLlmsFull = await handler.fetch(new Request("https://farm.test/llms-full.txt"));
+      expect(appLlmsFull.status).toBe(200);
+      expect((await appLlmsFull.text()).startsWith("# App index\n")).toBe(true);
+
       const manifest = JSON.parse(
         await fs.readFile(
           path.join(functionRoot, "farm-docs-content", ".farm-docs-last-modified.json"),

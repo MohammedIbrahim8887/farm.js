@@ -7,7 +7,7 @@ import {
   resolveHashedClientCssHref,
   resolveHashedClientJsSrc,
 } from "./client-css-href";
-import type { RouteManager } from "../routing/route-manager";
+import type { RouteManager, ApplicationMetadataRouteEntry } from "../routing/route-manager";
 import { compareRoutePatternSpecificity } from "../routing/specificity";
 import type { APIRouteManager } from "../api/route-manager";
 import { resolveFarmAPIServerBasePath } from "../api/server-path";
@@ -161,12 +161,11 @@ type UniversalMetadataImageRoute = {
   };
   data?: string;
 };
-type UniversalApplicationMetadataRoute = {
-  pattern: string;
-  kind: "sitemap" | "robots" | "manifest";
-  outputName: "sitemap.xml" | "robots.txt" | "manifest.webmanifest";
-  modulePath: string;
-};
+// Derived from the route manager so new metadata route kinds cannot drift out of sync.
+type UniversalApplicationMetadataRoute = Pick<
+  ApplicationMetadataRouteEntry,
+  "pattern" | "kind" | "outputName" | "modulePath"
+>;
 type UniversalMiddlewareRoute = {
   path: string;
   filePath: string;
@@ -4954,6 +4953,10 @@ function generateVirtualEntryCode(
   createFarmInstrumentationLifecycle,
   createFarmCacheKey,
   createFarmMetadataRouteResponse,
+  collectFarmLlmsTxtPages,
+  createFarmDefaultLlmsTxt,
+  createFarmLlmsMarkdownReader,
+  renderFarmLlmsFullTxt,
   createFarmThemeDocumentParts,
   createFarmLocaleCookie,
   createFarmProductionLifecycle,
@@ -5392,6 +5395,7 @@ const farmImageHandler = ${
 })`
   };
 const farmMarkdownConfig = ${JSON.stringify(config.md)};
+const farmLlmsTxtConfig = ${JSON.stringify(config.agent?.llmsTxt ?? { enabled: false, include: [], exclude: [] })};
 const farmMdxConfig = ${JSON.stringify({
     ...config.mdx,
     components: typeof config.mdx?.components === "string" ? config.mdx.components : undefined,
@@ -6273,6 +6277,40 @@ function createApplicationMetadataHref(match, locale) {
   return applyFarmBasePath(localizedHref);
 }
 
+// Static pages and root metadata for llms.txt, built the same way as in development.
+function createFarmLlmsTxtContext(request, full) {
+  const origin = new URL(request.url).origin;
+  const pages = collectFarmLlmsTxtPages(
+    pageRoutes.map((route) => ({ pattern: route.pattern, metadata: route.module && route.module.metadata })),
+    {
+      origin,
+      markdown: farmMarkdownConfig,
+      include: farmLlmsTxtConfig.include,
+      exclude: farmLlmsTxtConfig.exclude,
+    },
+  );
+  const rootLayout = layoutRoutes.find((layout) => layout.pattern === "/");
+  return {
+    pages,
+    defaults: createFarmDefaultLlmsTxt({
+      origin,
+      pages,
+      config: farmLlmsTxtConfig,
+      rootMetadata: rootLayout && rootLayout.module && rootLayout.module.metadata,
+    }),
+    // llms-full.txt reads each page's .md mirror through this same handler,
+    // with a fresh request so the caller's cookies never shape its content.
+    // HEAD discards the body, so it reads nothing.
+    ...(full
+      ? {
+          markdown: request.method.toUpperCase() === "HEAD"
+            ? async () => null
+            : createFarmLlmsMarkdownReader((page) => handleFarmRequest(page)),
+        }
+      : {}),
+  };
+}
+
 async function handleApplicationMetadataRouteRequest(request, routePathname) {
   const url = new URL(request.url);
   const match = matchApplicationMetadataRouteRequest(routePathname || url.pathname);
@@ -6288,15 +6326,23 @@ async function handleApplicationMetadataRouteRequest(request, routePathname) {
     if (routeModule?.default === undefined) {
       throw new Error("Metadata route module does not export a default value or handler");
     }
+    const isLlmsFull = match.metadata.kind === "llms-full";
+    const llmsContext = match.metadata.kind === "llms" || isLlmsFull
+      ? createFarmLlmsTxtContext(request, isLlmsFull)
+      : {};
     const value = typeof routeModule.default === "function"
       ? await routeModule.default({
           request,
           params: match.params,
           searchParams: url.searchParams,
           path: match.routePath,
+          ...llmsContext,
         })
       : routeModule.default;
-    return createFarmMetadataRouteResponse(match.metadata.kind, value, routeModule, { method });
+    const body = isLlmsFull && !(value instanceof Response)
+      ? await renderFarmLlmsFullTxt(value, { origin: url.origin, readMarkdown: llmsContext.markdown })
+      : value;
+    return createFarmMetadataRouteResponse(match.metadata.kind, body, routeModule, { method });
   } catch (error) {
     console.error("Metadata route render failed:", error);
     return new Response("Internal Server Error", {
@@ -6979,7 +7025,22 @@ async function handleFarmRequestInContext(
       ? `
   // Docs responses are served after app middleware so route guards and
   // middleware headers apply to the docs engine like any other page content.
-  if (farmDocsHandler) {
+  // An app's own llms.txt and llms-full.txt (agent.llmsTxt, llms.ts, llms-full.ts)
+  // take those paths from the docs engine.
+  if (farmDocsHandler${(() => {
+    const llmsTxt = config.agent?.llmsTxt;
+    const ownedByFile = (kind: string) =>
+      applicationMetadataRoutes.some(
+        (metadata) => metadata.kind === kind && metadata.pattern === "/",
+      );
+    const owned = [
+      ...(llmsTxt?.enabled || ownedByFile("llms") ? ["/llms.txt"] : []),
+      ...((llmsTxt?.enabled && llmsTxt.full) || ownedByFile("llms-full") ? ["/llms-full.txt"] : []),
+    ];
+    return owned.length
+      ? ` && !${JSON.stringify(owned)}.includes(normalizeRuntimePath(routePathname))`
+      : "";
+  })()}) {
     const docsResponse = await farmDocsHandler(request.clone());
     if (docsResponse) {
       if (!docsResponse.headers.get("content-type")?.toLowerCase().includes("text/html")) {
@@ -7124,6 +7185,34 @@ async function handleFarmRequestInContext(
   );
   if (applicationMetadataResponse) {
     return applyProductionMiddlewareHeaders(applicationMetadataResponse, middlewareHeaders);
+  }
+  `
+      : ""
+  }
+  ${
+    config.agent?.llmsTxt?.enabled
+      ? `
+  // agent.llmsTxt with no llms.ts or llms-full.ts: serve the generated files.
+  const farmGeneratedLlmsKind = normalizeRuntimePath(routePathname) === "/llms.txt"
+    ? "llms"
+    : ${config.agent?.llmsTxt?.full ? `normalizeRuntimePath(routePathname) === "/llms-full.txt" ? "llms-full" : ` : ""}null;
+  if (farmGeneratedLlmsKind) {
+    const llmsContext = createFarmLlmsTxtContext(request, farmGeneratedLlmsKind === "llms-full");
+    const llmsBody = farmGeneratedLlmsKind === "llms-full"
+      ? await renderFarmLlmsFullTxt(llmsContext.defaults, {
+          origin: new URL(request.url).origin,
+          readMarkdown: llmsContext.markdown,
+        })
+      : llmsContext.defaults;
+    return applyProductionMiddlewareHeaders(
+      createFarmMetadataRouteResponse(
+        farmGeneratedLlmsKind,
+        llmsBody,
+        { revalidate: farmLlmsTxtConfig.revalidate },
+        { method: request.method },
+      ),
+      middlewareHeaders,
+    );
   }
   `
       : ""

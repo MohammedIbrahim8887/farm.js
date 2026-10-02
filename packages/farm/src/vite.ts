@@ -35,6 +35,7 @@ import {
 } from "./routes-shared";
 import type { FarmDocsAPIHandler } from "./docs";
 import { createMarkdownMirrorResponse, resolveMarkdownMirrorTarget } from "./markdown";
+import { resolveFarmLlmsTxtConfig } from "./llms-txt";
 import {
   FARM_MARKDOWN_CONTENT_TYPE,
   createFarmMarkdownErrorBody,
@@ -78,7 +79,7 @@ import { createDeferredDataResponse } from "./deferred";
 import { _withAfterNodeMiddleware } from "./after";
 import { _runWithAPIRequestRuntime } from "./api/server-context";
 import type { APIRequestRuntime } from "./api/server-client-bridge";
-import { shouldBypassFarmRouterForDottedPath } from "./dev-static";
+import { farmAppOwnsLlmsPath, shouldBypassFarmRouterForDottedPath } from "./dev-static";
 import { findClientServerFnViolation, formatServerFnBoundaryError } from "./server-query-boundary";
 import {
   analyzeClientBoundary,
@@ -137,6 +138,13 @@ import { mergeMetadata } from "./metadata";
 import { FARM_CONFIG_REWRITES_PLUGIN_NAME } from "./plugins/rewrites";
 import { resolveFarmRequestURL } from "./server/request";
 import { reportOpenAPIDevGenerationResult } from "./openapi/dev-status";
+
+/** Paths `agent.llmsTxt` serves without a route file. */
+function farmLlmsTxtGeneratedPaths(config: { agent?: { llmsTxt?: unknown } }): string[] {
+  const llms = resolveFarmLlmsTxtConfig(config.agent?.llmsTxt as never);
+  if (!llms.enabled) return [];
+  return llms.full ? ["/llms.txt", "/llms-full.txt"] : ["/llms.txt"];
+}
 
 interface FarmVitePluginOptions extends FarmConfig {
   openapi?: FarmUserConfig["openapi"];
@@ -1822,7 +1830,14 @@ window.__FARM_MANIFEST__ = ${inlineValue({
               docsHeaders.set(key, Array.isArray(value) ? value.join(", ") : value);
             }
           }
-          if (farmDocsHandler) {
+          // An app's own llms.txt and llms-full.txt (agent.llmsTxt, llms.ts, llms-full.ts,
+          // or a public file) take those paths from the docs engine, as in production.
+          const appOwnsLlmsTxt = farmAppOwnsLlmsPath(requestPathname, {
+            generatedPaths: farmLlmsTxtGeneratedPaths(farmConfig),
+            routeManager: farmApp.getRouteManager(),
+            publicDir: server.config.publicDir,
+          });
+          if (farmDocsHandler && !appOwnsLlmsTxt) {
             const docsRequest = new Request(fullUrl, {
               method: requestMethod,
               headers: docsHeaders,
@@ -2343,10 +2358,12 @@ window.__FARM_MANIFEST__ = ${inlineValue({
           // request maps to a real file on disk or nothing in the app matches
           // the pathname.
           if (
-            shouldBypassFarmRouterForDottedPath(requestPathname, farmApp?.getRouteManager(), [
-              server.config.publicDir,
-              server.config.root,
-            ])
+            shouldBypassFarmRouterForDottedPath(
+              requestPathname,
+              farmApp?.getRouteManager(),
+              [server.config.publicDir, server.config.root],
+              farmLlmsTxtGeneratedPaths(farmConfig),
+            )
           ) {
             return next();
           }

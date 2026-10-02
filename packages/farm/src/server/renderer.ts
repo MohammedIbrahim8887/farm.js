@@ -1,5 +1,8 @@
 import * as fs from "fs";
+import * as https from "https";
+import { isIP } from "net";
 import * as path from "path";
+import * as tls from "tls";
 import type {
   FarmConfig,
   FarmRequest,
@@ -19,7 +22,7 @@ import {
   removeFarmDocumentTitles,
 } from "./full-document";
 import { getClientModuleMetadata } from "../utils/client-component";
-import { Writable } from "stream";
+import { Readable, Writable } from "stream";
 import {
   _clearCurrentMiddlewareContext,
   _clearCurrentMiddlewareData,
@@ -77,6 +80,14 @@ import { matchesFarmIfNoneMatch } from "../server-http";
 import { renderFarmFontDevHead } from "../font-vite";
 import { createFarmMetadataImageResponse } from "../metadata-image";
 import { createFarmMetadataRouteResponse } from "../metadata-route";
+import {
+  collectFarmLlmsTxtPages,
+  createFarmDefaultLlmsTxt,
+  createFarmLlmsMarkdownReader,
+  renderFarmLlmsFullTxt,
+  resolveFarmLlmsTxtConfig,
+} from "../llms-txt";
+import { resolveMarkdownConfig } from "../markdown";
 import {
   resolveFarmTrailingSlashRedirect,
   setFarmTrailingSlashPreference,
@@ -388,6 +399,52 @@ function toMiddlewareMap(input: unknown): Map<string, any> {
     return new Map(Object.entries(input as Record<string, any>));
   }
   return new Map<string, any>();
+}
+
+/**
+ * GETs a page from this HTTPS dev server. The connection goes to the server's
+ * own socket address, while SNI and certificate verification use the hostname
+ * the page was requested under, which is the name the dev certificate covers.
+ */
+function requestOwnHttpsServer(
+  request: Request,
+  address: { host: string; port: number },
+): Promise<Response> {
+  const url = new URL(request.url);
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  return new Promise((resolve, reject) => {
+    const outgoing = https.request(
+      {
+        host: address.host,
+        port: address.port,
+        method: "GET",
+        path: `${url.pathname}${url.search}`,
+        headers: { ...Object.fromEntries(request.headers), host: url.host },
+        // SNI carries names only, never IP addresses.
+        ...(isIP(hostname) ? {} : { servername: hostname }),
+        checkServerIdentity: (_, certificate) => tls.checkServerIdentity(hostname, certificate),
+      },
+      (incoming) => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) {
+            headers.append(name, item);
+          }
+        }
+        const status = incoming.statusCode ?? 502;
+        const hasBody = ![204, 205, 304].includes(status);
+        if (!hasBody) incoming.resume();
+        resolve(
+          new Response(hasBody ? (Readable.toWeb(incoming) as ReadableStream) : null, {
+            status,
+            headers,
+          }),
+        );
+      },
+    );
+    outgoing.on("error", reject);
+    outgoing.end();
+  });
 }
 
 function isWebResponse(value: unknown): value is Response {
@@ -1131,6 +1188,13 @@ export class ServerRenderer {
       const metadataRouteMatch = this.routeManager.matchMetadataRoute(pathname);
       if (metadataRouteMatch) {
         await this.renderMetadataRoute(req, res, metadataRouteMatch);
+        completeRender(res.statusCode || 200, pathname);
+        return;
+      }
+
+      const generatedLlmsKind = this.getGeneratedLlmsKind(pathname);
+      if (generatedLlmsKind) {
+        await this.renderGeneratedLlmsTxt(req, res, generatedLlmsKind);
         completeRender(res.statusCode || 200, pathname);
         return;
       }
@@ -2008,6 +2072,13 @@ export class ServerRenderer {
         trustProxy: this.config.server?.trustProxy,
       });
       const url = new URL(request.url);
+      const llmsContext: Partial<Awaited<ReturnType<ServerRenderer["createLlmsTxtContext"]>>> =
+        match.metadata.kind === "llms" || match.metadata.kind === "llms-full"
+          ? await this.createLlmsTxtContext(request, {
+              full: match.metadata.kind === "llms-full",
+              req,
+            })
+          : {};
       const value =
         typeof routeModule.default === "function"
           ? await (routeModule.default as any)({
@@ -2015,9 +2086,18 @@ export class ServerRenderer {
               params: match.params,
               searchParams: url.searchParams,
               path: match.routePath,
+              ...llmsContext,
             })
           : routeModule.default;
-      const response = createFarmMetadataRouteResponse(match.metadata.kind, value, routeModule, {
+      // llms-full objects need each page's Markdown, which only this side can fetch.
+      const body =
+        match.metadata.kind === "llms-full" && !(value instanceof Response)
+          ? await renderFarmLlmsFullTxt(value, {
+              origin: url.origin,
+              readMarkdown: llmsContext.markdown!,
+            })
+          : value;
+      const response = createFarmMetadataRouteResponse(match.metadata.kind, body, routeModule, {
         method,
       });
       await sendWebResponse(res as any, response);
@@ -2031,6 +2111,129 @@ export class ServerRenderer {
         }),
       );
     }
+  }
+
+  /** `/llms.txt` and `/llms-full.txt` from `agent.llmsTxt` when no file route owns them. */
+  private getGeneratedLlmsKind(pathname: string): "llms" | "llms-full" | null {
+    const config = resolveFarmLlmsTxtConfig(this.config.agent?.llmsTxt);
+    if (!config.enabled) return null;
+    if (pathname === "/llms.txt") return "llms";
+    return pathname === "/llms-full.txt" && config.full ? "llms-full" : null;
+  }
+
+  private async renderGeneratedLlmsTxt(
+    req: FarmRequest,
+    res: FarmResponse,
+    kind: "llms" | "llms-full",
+  ): Promise<void> {
+    try {
+      const request = createWebRequestFromFarmRequest(req, {
+        trustProxy: this.config.server?.trustProxy,
+      });
+      const config = resolveFarmLlmsTxtConfig(this.config.agent?.llmsTxt);
+      const context = await this.createLlmsTxtContext(request, { full: kind === "llms-full", req });
+      const body =
+        kind === "llms-full"
+          ? await renderFarmLlmsFullTxt(context.defaults, {
+              origin: new URL(request.url).origin,
+              readMarkdown: context.markdown!,
+            })
+          : context.defaults;
+      await sendWebResponse(
+        res as any,
+        createFarmMetadataRouteResponse(
+          kind,
+          body,
+          { revalidate: config.revalidate },
+          { method: req.method },
+        ),
+      );
+    } catch (error) {
+      logger.error(`Generated ${kind}.txt failed: ${error}`);
+      await sendWebResponse(
+        res as any,
+        new Response("Internal Server Error", {
+          status: 500,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        }),
+      );
+    }
+  }
+
+  /** Same inputs the production server gives llms.txt: static pages and root metadata. */
+  private async createLlmsTxtContext(
+    request: Request,
+    options: { full?: boolean; req?: FarmRequest } = {},
+  ): Promise<{
+    pages: ReturnType<typeof collectFarmLlmsTxtPages>;
+    defaults: ReturnType<typeof createFarmDefaultLlmsTxt>;
+    markdown?: (url: string) => Promise<string | null>;
+  }> {
+    const config = resolveFarmLlmsTxtConfig(this.config.agent?.llmsTxt);
+    const origin = new URL(request.url).origin;
+    const staticRoutes = [...this.routeManager.getRoutes()].filter(
+      ([pattern]) => !pattern.includes("["),
+    );
+    const sources = await Promise.all(
+      staticRoutes.map(async ([pattern, route]) => {
+        try {
+          const metadata = (await this.routeManager.loadRouteModule(route.modulePath)).metadata;
+          return { pattern, metadata: metadata as unknown };
+        } catch (error) {
+          // The page itself will surface this error; list it with its fallback title.
+          logger.warn(`Could not read metadata for ${pattern} in llms.txt: ${error}`);
+          return { pattern };
+        }
+      }),
+    );
+
+    const rootLayout = this.routeManager.getLayouts().get("/");
+    const rootMetadata = rootLayout
+      ? (await this.routeManager.loadLayoutModule(rootLayout.modulePath)).metadata
+      : undefined;
+    const pages = collectFarmLlmsTxtPages(sources, {
+      origin,
+      basePath: this.config.basePath,
+      markdown: resolveMarkdownConfig(this.config.md as any),
+      include: config.include,
+      exclude: config.exclude,
+    });
+    return {
+      pages,
+      defaults: createFarmDefaultLlmsTxt({ origin, pages, config, rootMetadata }),
+      ...(options.full ? { markdown: this.createDevMarkdownReader(options.req) } : {}),
+    };
+  }
+
+  /**
+   * Reads page mirrors back through this dev server, the way its .md handler
+   * renders pages, so Markdown sources and agent overrides are included. Requests
+   * go to the server's own socket address: the page URLs carry the Host header,
+   * which a client controls, and fetching them would let anyone who can reach a
+   * network-exposed dev server point it at other hosts. Over HTTPS the certificate
+   * is still checked against the requested hostname. HEAD reads nothing, since its
+   * body is discarded.
+   */
+  private createDevMarkdownReader(req?: FarmRequest): (url: string) => Promise<string | null> {
+    const socket = req?.socket as
+      | { localAddress?: string; localPort?: number; encrypted?: boolean }
+      | undefined;
+    if (req?.method?.toUpperCase() === "HEAD" || !socket?.localAddress || !socket.localPort) {
+      return async () => null;
+    }
+    if (socket.encrypted) {
+      const address = { host: socket.localAddress, port: socket.localPort };
+      return createFarmLlmsMarkdownReader((page) => requestOwnHttpsServer(page, address));
+    }
+    const host = socket.localAddress.includes(":")
+      ? `[${socket.localAddress}]`
+      : socket.localAddress;
+    const localOrigin = `http://${host}:${socket.localPort}`;
+    const read = createFarmLlmsMarkdownReader((page) => fetch(page));
+    return (url) => {
+      const target = new URL(url);
+      return read(`${localOrigin}${target.pathname}${target.search}`);
+    };
   }
 
   private async renderMetadataImage(
