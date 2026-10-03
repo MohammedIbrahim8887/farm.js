@@ -9496,10 +9496,21 @@ function createKeyedRowsBlockComponent(
         else removed.push(instance);
       }
       if (nextIndex !== rows.keys.length) return false;
+      // Validate every singleton target before removing rows. Direct singleton
+      // updates cache a missing target and cannot recover on a later refresh.
       const shouldPrepareBindings =
-        rows.items.length > 1 &&
-        this.currentProps.bindings.length > 0 &&
-        !this.currentProps.hostBlocks;
+        this.currentProps.bindings.length > 0 && !this.currentProps.hostBlocks;
+      if (
+        shouldPrepareBindings &&
+        rows.items.length === 1 &&
+        this.currentProps.bindings.some(
+          (binding) =>
+            !findCompilerHostTarget(this.instances.get(rows.keys[0])!.element, binding.path),
+        )
+      ) {
+        this.activateFallback(afterCommit);
+        return true;
+      }
       const preparedBindings = shouldPrepareBindings
         ? prepareKeyedRowBindingSetUpdates(this.currentProps, this.instances, rows)
         : undefined;
