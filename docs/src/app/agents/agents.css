@@ -75,7 +75,7 @@
   letter-spacing: -0.055em;
   text-wrap: balance;
 }
-.agents-hero h1 > span {
+.agents-hero h1 > span:not(.agents-hero-word) {
   color: #8f8f8f;
 }
 .agents-intro {
@@ -406,10 +406,21 @@
 }
 @media (max-width: 600px) {
   .agents-hero h1 {
-    font-size: clamp(32px, 8.5vw, 48px);
+    font-size: clamp(30px, 10vw, 40px);
   }
   .agents-intro {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .agents-signup .agent-waitlist input {
+    min-height: 44px;
+    padding: 8px 10px;
     font-size: 16px;
+  }
+  .agents-signup .agent-waitlist button {
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 9px;
   }
   .agent-art-caption {
     left: 24px;

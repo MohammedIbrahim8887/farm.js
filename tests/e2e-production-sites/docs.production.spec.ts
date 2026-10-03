@@ -757,6 +757,7 @@ test("agent waitlist keeps failures recoverable and fits narrow screens", async 
       expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(width);
     }
+    if (width <= 600) await expect(email).toHaveCSS("font-size", "16px");
   }
   result = "success";
   await submit.click();
@@ -764,6 +765,45 @@ test("agent waitlist keeps failures recoverable and fits narrow screens", async 
   await expect(email).toHaveValue("");
   await expect(form.getByRole("status")).toHaveText("");
   await expect(submit).toBeEnabled();
+});
+
+test("waitlist demo preserves its accessible name and releases its held width", async ({
+  page,
+}) => {
+  let finishResponse!: () => void;
+  let signalRouteStarted!: () => void;
+  const routeStarted = new Promise<void>((resolve) => {
+    signalRouteStarted = resolve;
+  });
+  await page.route("**/api/waitlist", async (route) => {
+    await new Promise<void>((resolve) => {
+      finishResponse = resolve;
+      signalRouteStarted();
+    });
+    await route.fulfill({ json: { ok: true, id: "demo-label-test-only" } });
+  });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/agents");
+  const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
+  const email = form.getByLabel("Email address");
+  const submit = form.getByRole("button");
+  const label = submit.locator("[data-agent-waitlist-label]");
+  await expect(form).toBeVisible();
+  await expect(submit).toHaveAccessibleName("Join the waitlist");
+  await expect.poll(() => label.textContent(), { timeout: 10_000 }).not.toBe("Join the waitlist");
+  await expect(submit).toHaveAccessibleName("Join the waitlist");
+  await expect.poll(() => submit.evaluate((button) => button.style.minWidth)).not.toBe("");
+  await email.evaluate((input) => {
+    (input as HTMLInputElement).value = "demo-label@example.com";
+  });
+  await form.evaluate((element) => (element as HTMLFormElement).requestSubmit());
+  await expect(label).toHaveText("Joining…");
+  await expect(submit).toHaveAccessibleName("Joining…");
+  await routeStarted;
+  finishResponse();
+  await expect(label).toHaveText("Join the waitlist");
+  await expect(submit).toHaveAccessibleName("Join the waitlist");
+  await expect.poll(() => submit.evaluate((button) => button.style.minWidth)).toBe("");
 });
 
 test("agents page connects the blog, planned capabilities, Markdown, and shared waitlist", async ({
@@ -789,7 +829,7 @@ test("agents page connects the blog, planned capabilities, Markdown, and shared 
   ).toBe(true);
   await expect(page).toHaveTitle("Agent infrastructure — Farm.js");
   await expect(page.getByRole("heading", { level: 1 })).toHaveAccessibleName(
-    "Deploy agents. Connect your tools.",
+    "Deploy agents Connect your tools.",
   );
   await expect(page.getByText("Coming soon", { exact: true })).toHaveCount(0);
   await expect(page.locator(".agents-capabilities article")).toHaveCount(4);
@@ -918,7 +958,7 @@ test("agent hero stays typographic", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/agents");
   const title = page.getByRole("heading", { level: 1 });
-  await expect(title).toHaveText("Deploy agents.Connect your tools.");
+  await expect(title).toHaveText("Deploy agentsConnect your tools.");
   await expect(
     page.locator("[data-letter-title], [data-letter-reel], [data-title-replay]"),
   ).toHaveCount(0);
@@ -976,6 +1016,22 @@ test("agents page stays readable on mobile and without JavaScript", async ({
     const page = await context.newPage();
     try {
       await page.goto("/agents");
+      const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
+      if (javaScriptEnabled) {
+        const email = form.getByLabel("Email address");
+        const submit = form.getByRole("button");
+        await expect(submit).toHaveAttribute("data-sw-state", "on");
+        await submit.evaluate((button) => {
+          button.dataset.swState = "press";
+        });
+        await submit.hover();
+        await expect(submit).toHaveCSS("background-color", "rgb(204, 204, 204)");
+        await email.focus();
+        await expect(submit).toHaveAttribute("data-sw-state", "off");
+        await expect(page.locator(".farm-sw-wire")).toHaveCSS("opacity", "0");
+        await page.getByRole("link", { name: "Skip to content" }).focus();
+        await expect(submit).toHaveAttribute("data-sw-state", "on");
+      }
       for (const width of [320, 390, 768, 1024, 1440]) {
         await page.setViewportSize({ width, height: 900 });
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -1007,7 +1063,6 @@ test("agents page stays readable on mobile and without JavaScript", async ({
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
           true,
         );
-        const form = page.getByRole("form", { name: "Agent infrastructure waitlist" });
         if (javaScriptEnabled) {
           await expect(form).toBeVisible();
           for (const control of [form.getByLabel("Email address"), form.getByRole("button")]) {
@@ -1031,6 +1086,49 @@ test("agents page stays readable on mobile and without JavaScript", async ({
     } finally {
       await context.close();
     }
+  }
+});
+
+test("home keeps its agents link usable without JavaScript", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+  const page = await context.newPage();
+  try {
+    await page.goto("/");
+    const agents = page.locator(".farm-hero-tag");
+    await expect(agents).toHaveAccessibleName("Agent infrastructure");
+    await expect(agents).toHaveAttribute("href", "/agents");
+    await expect(agents).toHaveCSS("border-top-style", "solid");
+    await expect(page.locator(".farm-hero-swap")).not.toHaveAttribute("tabindex");
+    for (const width of [320, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(agents).toBeVisible();
+      const box = await agents.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+      const titleLine = page.locator(".farm-hero-swap").locator("..");
+      expect(await titleLine.evaluate((line) => line.scrollWidth <= line.clientWidth + 1)).toBe(
+        true,
+      );
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    }
+  } finally {
+    await context.close();
+  }
+
+  const animatedContext = await browser.newContext({
+    baseURL,
+    reducedMotion: "no-preference",
+  });
+  const animatedPage = await animatedContext.newPage();
+  try {
+    await animatedPage.goto("/");
+    const animatedAgents = animatedPage.locator(".farm-hero-tag");
+    await expect(animatedAgents).toHaveAttribute("data-sw-state", "target", { timeout: 10_000 });
+    await expect(animatedAgents).toHaveCSS("border-top-style", "dashed");
+  } finally {
+    await animatedContext.close();
   }
 });
 

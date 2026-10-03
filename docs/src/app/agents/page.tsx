@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AgentArtwork } from "../../components/agents/artwork";
 import { AgentWaitlist } from "../../components/agents/waitlist";
+import { SelectionWire } from "../../components/home/selection-wire";
 import { BlogFigure } from "../../components/blog/figures";
 import { FlickeringGrid } from "../../components/ui/flickering-grid";
 import {
@@ -140,9 +141,9 @@ export default function AgentsPage() {
                   <IndexedLabel index="06" icon={Network} label="Agent infrastructure" />
                 </div>
                 <h1 id="agents-title">
-                  Deploy agents.
+                  Deploy <span className="agents-hero-word">agents</span>
                   <br />
-                  <span>Connect your tools.</span>
+                  <span className="agents-hero-line">Connect your tools.</span>
                 </h1>
                 <p className="agents-intro">
                   Your agents, MCP servers, and website. Connected, managed, and observable from the
@@ -151,6 +152,20 @@ export default function AgentsPage() {
                 <div id="waitlist" className="agents-signup">
                   <AgentWaitlist source="agents" note={false} />
                 </div>
+                {/* The landing hero's drag and wire, from "agents" into the waitlist button. */}
+                <SelectionWire
+                  clear=".agents-intro"
+                  fitInk
+                  heading="#agents-title"
+                  over=".agents-hero-line"
+                  padRight={0.14}
+                  padX={0.03}
+                  pauseWithin=".agent-waitlist"
+                  route="hug"
+                  target=".agent-waitlist button[type=submit]"
+                  targetLabel={{ text: "[data-agent-waitlist-label]", to: "Join now" }}
+                  word=".agents-hero-word"
+                />
               </div>
               {/* The landing hero's flickering grid, behind the bottom of the hero copy (adds no height). */}
               <div aria-hidden className="agents-hero-flicker">
