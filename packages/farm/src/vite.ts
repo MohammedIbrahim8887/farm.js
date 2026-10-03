@@ -79,7 +79,11 @@ import { createDeferredDataResponse } from "./deferred";
 import { _withAfterNodeMiddleware } from "./after";
 import { _runWithAPIRequestRuntime } from "./api/server-context";
 import type { APIRequestRuntime } from "./api/server-client-bridge";
-import { farmAppOwnsLlmsPath, shouldBypassFarmRouterForDottedPath } from "./dev-static";
+import {
+  farmAppOwnsLlmsPath,
+  isViteModuleRequest,
+  shouldBypassFarmRouterForDottedPath,
+} from "./dev-static";
 import { findClientServerFnViolation, formatServerFnBoundaryError } from "./server-query-boundary";
 import {
   analyzeClientBoundary,
@@ -1830,6 +1834,8 @@ window.__FARM_MANIFEST__ = ${inlineValue({
               docsHeaders.set(key, Array.isArray(value) ? value.join(", ") : value);
             }
           }
+          // Vite loading a `.md` file as a module is not a request for docs or Markdown.
+          const viteModuleRequest = isViteModuleRequest(parsedRequestUrl, req.headers);
           // An app's own llms.txt and llms-full.txt (agent.llmsTxt, llms.ts, llms-full.ts,
           // or a public file) take those paths from the docs engine, as in production.
           const appOwnsLlmsTxt = farmAppOwnsLlmsPath(requestPathname, {
@@ -1837,7 +1843,7 @@ window.__FARM_MANIFEST__ = ${inlineValue({
             routeManager: farmApp.getRouteManager(),
             publicDir: server.config.publicDir,
           });
-          if (farmDocsHandler && !appOwnsLlmsTxt) {
+          if (farmDocsHandler && !appOwnsLlmsTxt && !viteModuleRequest) {
             const docsRequest = new Request(fullUrl, {
               method: requestMethod,
               headers: docsHeaders,
@@ -1853,44 +1859,48 @@ window.__FARM_MANIFEST__ = ${inlineValue({
             }
           }
 
-          const markdownSourceResponse = await createFarmMarkdownSourceResponse({
-            request: new Request(fullUrl, {
-              method: requestMethod,
-              headers: docsHeaders,
-            }),
-            config: farmApp.getConfig().mdx,
-            resolveSource: async (pathname) => {
-              const match = farmApp.getRouteManager().matchRoute(pathname);
-              const sourcePath =
-                match.route?.markdownSourcePath ||
-                (match.route && isFarmMarkdownPageFile(match.route.modulePath)
-                  ? match.route.modulePath
-                  : null);
-              if (!sourcePath) {
-                return null;
-              }
-              return {
-                source: await fs.promises.readFile(sourcePath, "utf8"),
-                filePath: sourcePath,
-              };
-            },
-          });
+          const markdownSourceResponse = viteModuleRequest
+            ? null
+            : await createFarmMarkdownSourceResponse({
+                request: new Request(fullUrl, {
+                  method: requestMethod,
+                  headers: docsHeaders,
+                }),
+                config: farmApp.getConfig().mdx,
+                resolveSource: async (pathname) => {
+                  const match = farmApp.getRouteManager().matchRoute(pathname);
+                  const sourcePath =
+                    match.route?.markdownSourcePath ||
+                    (match.route && isFarmMarkdownPageFile(match.route.modulePath)
+                      ? match.route.modulePath
+                      : null);
+                  if (!sourcePath) {
+                    return null;
+                  }
+                  return {
+                    source: await fs.promises.readFile(sourcePath, "utf8"),
+                    filePath: sourcePath,
+                  };
+                },
+              });
           if (markdownSourceResponse) {
             if (await runAppMiddlewareForContentRoute()) return;
             await sendWebResponse(res, markdownSourceResponse);
             return;
           }
 
-          const markdownResponse = await createMarkdownMirrorResponse({
-            request: new Request(fullUrl, {
-              method: requestMethod,
-              headers: docsHeaders,
-            }),
-            config: farmApp.getConfig().md,
-            routeExists: (pathname) =>
-              Boolean(farmApp.getRouteManager().matchRoute(pathname).route),
-            renderPage: async (request) => fetch(request),
-          });
+          const markdownResponse = viteModuleRequest
+            ? null
+            : await createMarkdownMirrorResponse({
+                request: new Request(fullUrl, {
+                  method: requestMethod,
+                  headers: docsHeaders,
+                }),
+                config: farmApp.getConfig().md,
+                routeExists: (pathname) =>
+                  Boolean(farmApp.getRouteManager().matchRoute(pathname).route),
+                renderPage: async (request) => fetch(request),
+              });
           if (markdownResponse) {
             if (await runAppMiddlewareForContentRoute()) return;
             await sendWebResponse(res, markdownResponse);
@@ -1901,7 +1911,7 @@ window.__FARM_MANIFEST__ = ${inlineValue({
           // asked for Markdown (a `.md` URL or `Accept: text/markdown`) and no
           // page route exists, return a Markdown 404 body rather than letting a
           // `.md` request fall through to a static-asset 404 or an HTML shell.
-          if (farmRequestWantsMarkdown(requestPathname, req.headers.accept)) {
+          if (!viteModuleRequest && farmRequestWantsMarkdown(requestPathname, req.headers.accept)) {
             const markdownRoute = farmApp
               .getRouteManager()
               .matchRoute(normalizeFarmMarkdownRoutePath(requestPathname));
