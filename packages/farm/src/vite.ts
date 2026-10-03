@@ -1,5 +1,6 @@
 import type { ConfigEnv, Plugin, UserConfig, ViteDevServer, HmrContext, Connect } from "vite";
 import type { FarmConfig, FarmRequest } from "./types";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { FarmApp } from "./app";
 import { logger, toPosixPath, toViteModuleId } from "./utils";
 import { defaultGlobalCSS } from "./default-styles";
@@ -1792,9 +1793,13 @@ window.__FARM_MANIFEST__ = ${inlineValue({
           const runAppMiddlewareForContentRoute = async (): Promise<boolean> => {
             if (!middlewareManager?.hasMiddleware()) return false;
             const middlewareRequest = createRequestFromNodeRequest(req, new URL(fullUrl));
-            return farmApp
-              .getServerRenderer()
-              .runWithRequestContext(middlewareRequest, () => middlewareManager!.execute(req, res));
+            return runFarmMiddlewareWithNavigation(
+              farmApp.getServerRenderer(),
+              middlewareRequest,
+              req,
+              res,
+              () => middlewareManager!.execute(req, res),
+            );
           };
 
           // Serve the raw OpenAPI spec as JSON at a predictable URL for agents
@@ -2840,11 +2845,13 @@ window.__FARM_MANIFEST__ = ${inlineValue({
           try {
             if (middlewareManager?.hasMiddleware()) {
               const middlewareRequest = createRequestFromNodeRequest(req, new URL(fullUrl));
-              const handled = await farmApp
-                .getServerRenderer()
-                .runWithRequestContext(middlewareRequest, () =>
-                  middlewareManager!.execute(req, res),
-                );
+              const handled = await runFarmMiddlewareWithNavigation(
+                farmApp.getServerRenderer(),
+                middlewareRequest,
+                req,
+                res,
+                () => middlewareManager!.execute(req, res),
+              );
               if (handled) {
                 if (!responseInterceptor?.isEnded()) {
                   const duration = Date.now() - startTime;
@@ -3592,6 +3599,28 @@ if (import.meta.hot) {
       return modules;
     },
   };
+}
+
+/**
+ * Run app middleware so that redirect() and notFound() answer the request (a
+ * redirect, or the app's not-found page) instead of failing it with a 500,
+ * matching the production middleware runner.
+ */
+function runFarmMiddlewareWithNavigation(
+  renderer: ReturnType<FarmApp["getServerRenderer"]>,
+  middlewareRequest: Request,
+  req: IncomingMessage,
+  res: ServerResponse,
+  execute: () => Promise<boolean>,
+): Promise<boolean> {
+  return renderer.runWithRequestContext(middlewareRequest, async () => {
+    try {
+      return await execute();
+    } catch (error) {
+      if (await renderer.respondToNavigationError(req as any, res as any, error)) return true;
+      throw error;
+    }
+  });
 }
 
 function isFarmClientVirtualId(id: string): boolean {
@@ -5284,16 +5313,20 @@ async function hydrate() {
     let pageProps = normalizeServerProps(window.__FARM_PROPS__);
     applyCanonicalPathFromProps(pageProps);
 
+    // A notFound() after the streamed shell swapped the page for the
+    // not-found UI (late-navigation-recovery): never hydrate the page that
+    // threw. Islands outside the page still hydrate.
+    const lateNotFound = document.documentElement.dataset.farmLateNotFound === 'true';
     const pageShouldHydrate =
-      typeof window.__FARM_PAGE_SHOULD_HYDRATE__ === 'boolean'
+      !lateNotFound &&
+      (typeof window.__FARM_PAGE_SHOULD_HYDRATE__ === 'boolean'
         ? window.__FARM_PAGE_SHOULD_HYDRATE__
         : isClientComponent ||
-          findRoute(window.location.pathname)?.route?.shouldHydrate === true;
-    const layoutShouldHydrate = window.__FARM_LAYOUT_SHOULD_HYDRATE__ === true;
+          findRoute(window.location.pathname)?.route?.shouldHydrate === true);
+    const layoutShouldHydrate = !lateNotFound && window.__FARM_LAYOUT_SHOULD_HYDRATE__ === true;
     const shouldHydrate =
-      window.__FARM_SHOULD_HYDRATE__ === true ||
-      pageShouldHydrate ||
-      layoutShouldHydrate;
+      !lateNotFound &&
+      (window.__FARM_SHOULD_HYDRATE__ === true || pageShouldHydrate || layoutShouldHydrate);
     const hydratedSlots = await hydrateInitialRouteSlots();
     ${
       isolatedHydrationEnabled

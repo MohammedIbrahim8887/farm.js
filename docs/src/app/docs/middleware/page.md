@@ -90,6 +90,11 @@ export async function middleware(
 }
 ```
 
+`redirect()`, `permanentRedirect()`, and `notFound()` from `@farm.js/core/navigation` also work in
+middleware: Farm answers with the redirect, or with a `404` and the app's `not-found.tsx` (Farm's
+built-in page when there is none), without running the page. The redirect target is sent as
+written, like `ctx.redirect()`.
+
 Use either a default Farm handler or a named `middleware` export in one file, not both. The exported `config.matcher` uses the same matcher syntax as config middleware.
 The request uses the standard Web body APIs in both development and production, so named
 middleware can call `request.json()`, `request.text()`, or `request.formData()` when the request

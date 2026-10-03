@@ -1118,6 +1118,34 @@ export default function DashboardError({ error, reset }: ErrorProps) {
 
 `error.tsx` receives `error`, `reset`, `params`, `path`, `search`, `searchParams`, middleware data, and plugin context. The closest route error boundary handles normal render/data failures. Redirects and `notFound()` still escape to Farm's redirect and not-found handling.
 
+### redirect() and notFound()
+
+Import `redirect()`, `permanentRedirect()`, and `notFound()` from `@farm.js/core` or
+`@farm.js/core/navigation`. They work in pages, layouts, server components, route data hooks, and
+[middleware](/docs/middleware), and a page that hydrates can import them like any other module.
+
+```tsx
+import { notFound, type PageProps } from "@farm.js/core";
+
+export default async function ProductPage({ params }: PageProps<"/products/[id]">) {
+  const product = await getProduct(params.id);
+  if (!product) notFound();
+  return <Product product={product} />;
+}
+```
+
+While the response has not started, Farm answers with the real status: `307` or `308` with a
+`Location` header, or `404` with the app's configured not-found page. That includes a synchronous page
+under a `loading.tsx` boundary, and an async page in production, which Farm awaits before rendering.
+
+When the call happens after a loading boundary already streamed the `200` shell (a component behind
+`<Suspense>` that finishes later, or an async page in development), the status can no longer
+change. Like Next.js, Farm finishes the document so it recovers in the browser: an `http(s)`
+redirect replaces the location, and `notFound()` swaps the page for the app's not-found page,
+marks the document `noindex`, and skips hydrating the page that threw. The layouts are already on
+screen, so the not-found page renders without them; if it needs context a layout provides, Farm
+shows its built-in not-found page instead.
+
 With experimental RSC enabled, failures before the HTML shell is sent render the nearest
 `error.tsx` through RSC and SSR with status `500` and `Cache-Control: private, no-store`.
 RSC loading and error boundaries follow the selected page's file ancestors, including route
