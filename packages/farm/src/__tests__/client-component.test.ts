@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  describeSuppressedAsyncHydration,
   enforceFarmIsolatedHydrationRouteBudget,
   getClientModuleHydrationPlan,
   getClientModuleMetadata,
@@ -837,7 +838,7 @@ export default function Layout() { return <><Counter />{labels.join(",")}</>; }
           hasIsolatedClientBoundaries: true,
           asyncOwnerIslands: true,
         });
-        // A synchronous owner with the same graph still trips the guard.
+        // The same graph without async-owner islands still trips the guard.
         expect(getClientModuleHydrationPlan(pageFile, root, "enabled")).toMatchObject({
           hasIsolatedClientBoundaries: false,
           costGuardExceeded: true,
@@ -883,6 +884,102 @@ export default function Layout() { return <><Counter />{labels.join(",")}</>; }
       });
       expect(page.asyncOwnerIslands).toBeUndefined();
     });
+
+    it("suppresses an overflowing async layout before keeping a route island", () => {
+      const { root, pageFile } = asyncPage(
+        "<div><StarButton count={1} /><StarButton count={2} /><StarButton count={3} /><StarButton count={4} /><StarButton count={5} /></div>",
+      );
+      const asyncLayout = getClientModuleHydrationPlan(pageFile, root, "enabled", islands);
+      const route = {
+        ...asyncLayout,
+        legacyShouldHydrate: true,
+        legacyIslandStrategy: "load" as const,
+        estimatedIsolatedRootCount: 1,
+        isolatedBoundaries: asyncLayout.isolatedBoundaries.slice(0, 1),
+      };
+      delete route.asyncOwnerIslands;
+      delete route.suppressedAsyncHydration;
+
+      enforceFarmIsolatedHydrationRouteBudget(
+        [{ pattern: "/", depth: 0, metadata: asyncLayout }],
+        [{ pattern: "/demo", depth: 1, metadata: route }],
+        () => true,
+      );
+
+      expect(asyncLayout).toMatchObject({
+        shouldHydrate: false,
+        hasIsolatedClientBoundaries: false,
+        isolatedBoundaries: [],
+        suppressedAsyncHydration: true,
+        fallbackReason:
+          "the matched route /demo can create 6 isolated roots, above the measured limit of 4",
+      });
+      expect(asyncLayout.asyncOwnerIslands).toBeUndefined();
+      expect(route).toMatchObject({
+        shouldHydrate: false,
+        hasIsolatedClientBoundaries: true,
+      });
+    });
+
+    it("rechecks the full owner chain after an async layout fallback", () => {
+      const makeOwner = (estimatedIsolatedRootCount: number) => {
+        const { root, pageFile } = asyncPage("<StarButton count={1} />");
+        return {
+          ...getClientModuleHydrationPlan(pageFile, root, "enabled", islands),
+          estimatedIsolatedRootCount,
+        };
+      };
+      const rootLayout = makeOwner(2);
+      const middleLayout = makeOwner(3);
+      const leafLayout = makeOwner(2);
+      const route = makeOwner(1);
+
+      enforceFarmIsolatedHydrationRouteBudget(
+        [
+          { pattern: "/", depth: 0, metadata: rootLayout },
+          { pattern: "/demo", depth: 1, metadata: middleLayout },
+          { pattern: "/demo/leaf", depth: 2, metadata: leafLayout },
+        ],
+        [{ pattern: "/demo/leaf/page", depth: 3, metadata: route }],
+        (layoutPattern, routePattern) =>
+          layoutPattern === "/" ||
+          routePattern === layoutPattern ||
+          routePattern.startsWith(`${layoutPattern}/`),
+      );
+
+      expect(rootLayout.hasIsolatedClientBoundaries).toBe(true);
+      expect(middleLayout).toMatchObject({
+        hasIsolatedClientBoundaries: false,
+        suppressedAsyncHydration: true,
+      });
+      expect(leafLayout.hasIsolatedClientBoundaries).toBe(true);
+      expect(route).toMatchObject({
+        hasIsolatedClientBoundaries: false,
+        suppressedAsyncHydration: true,
+      });
+      expect(
+        [rootLayout, middleLayout, leafLayout, route].reduce(
+          (count, owner) =>
+            count + (owner.hasIsolatedClientBoundaries ? owner.estimatedIsolatedRootCount : 0),
+          0,
+        ),
+      ).toBe(4);
+    });
+  });
+
+  it("describes suppressed async hydration with and without a concrete reason", () => {
+    const generic = describeSuppressedAsyncHydration("/demo");
+    expect(generic).toContain("with client-side hydration enabled");
+    expect(generic).toContain('Move the interactive UI into an eligible "use client" boundary');
+    expect(generic).not.toContain("imports client components");
+    expect(generic).not.toContain("reason above");
+
+    const explained = describeSuppressedAsyncHydration(
+      "/demo",
+      "the owner explicitly exports `hydrate = true`",
+    );
+    expect(explained).toContain("(the owner explicitly exports `hydrate = true`)");
+    expect(explained).toContain("Fix the reason above");
   });
 
   it("still hydrates synchronous pages whose imports include client components", () => {
@@ -1119,6 +1216,29 @@ export function Chart() {}
 
     expect(sources[0]).toContain("function wrapFarmClientRouteGraph(element)");
     expect(sources[0]).toContain("return wrapFarmIsolatedClientGraph(React, wrapped);");
+  });
+
+  it("propagates isolated layouts into production's synthetic docs routes", () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), "src", "nitro", "universal-build.ts"),
+      "utf-8",
+    );
+    const docsRoutesStart = source.indexOf("if (syntheticDocsEntry)");
+    const docsRoutesEnd = source.indexOf("\n\n  const clientRouteSlots", docsRoutesStart);
+    expect(docsRoutesStart).toBeGreaterThan(-1);
+    expect(docsRoutesEnd).toBeGreaterThan(docsRoutesStart);
+
+    const docsRoutes = source.slice(docsRoutesStart, docsRoutesEnd);
+    expect(docsRoutes).toContain("layout.shouldHydrate || layout.hasIsolatedClientBoundaries");
+    expect(docsRoutes).toContain("hasIsolatedClientBoundaries: applicableClientLayouts.some(");
+    expect(docsRoutes).toContain(".flatMap((layout) => layout.isolatedBoundaries)");
+    const budgetStart = source.indexOf("\n  enforceFarmIsolatedHydrationRouteBudget(");
+    const budgetEnd = source.indexOf("\n  );", budgetStart);
+    expect(budgetStart).toBeGreaterThan(-1);
+    expect(budgetEnd).toBeGreaterThan(budgetStart);
+    expect(source.slice(budgetStart, budgetEnd)).toContain(
+      "...syntheticDocsPatterns.map((pattern) => ({",
+    );
   });
 
   it("scopes isolated root disposal and hydration to SPA navigation subtrees", () => {

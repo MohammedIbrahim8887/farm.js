@@ -123,11 +123,13 @@ export function getFarmClientHydrationPlanOptions(
 
 /** The warning for an async owner whose client components stay static. */
 export function describeSuppressedAsyncHydration(subject: string, reason?: string): string {
+  const remediation = reason
+    ? "Fix the reason above, or render the interactive UI from a synchronous owner."
+    : 'Move the interactive UI into an eligible "use client" boundary, or render it from a synchronous owner.';
   return (
-    `${subject} is an async server component that imports client components. React cannot ` +
-    `hydrate an async component, and its client components could not hydrate as isolated ` +
-    `islands${reason ? ` (${reason})` : ""}, so the route stays server-rendered and those ` +
-    `components are not interactive. Fix the reason above, or render them from a synchronous page.`
+    `${subject} is an async server component with client-side hydration enabled. React cannot ` +
+    `hydrate an async component, and that hydration could not be moved to isolated islands${reason ? ` (${reason})` : ""}, ` +
+    `so it stays server-rendered without client-side interactivity. ${remediation}`
   );
 }
 
@@ -717,19 +719,39 @@ export function enforceFarmIsolatedHydrationRouteBudget(
     const totalRootCount = layoutRootCount + routeRootCount;
     if (totalRootCount <= boundaryLimit) continue;
 
-    let accumulatedLayoutRoots = 0;
-    const overflowingLayout = applicableLayouts.find((layout) => {
-      if (layout.metadata.hasIsolatedClientBoundaries) {
-        accumulatedLayoutRoots += layout.metadata.estimatedIsolatedRootCount;
-      }
-      return accumulatedLayoutRoots > boundaryLimit;
-    });
     const fallbackReason = `the matched route ${route.pattern} can create ${totalRootCount} isolated roots, above the measured limit of ${boundaryLimit}`;
 
-    if (overflowingLayout && !overflowingLayout.metadata.asyncOwnerIslands) {
-      restoreRouteWideHydration(overflowingLayout.metadata, fallbackReason);
-    } else if (route.metadata.hasIsolatedClientBoundaries && !route.metadata.asyncOwnerIslands) {
-      restoreRouteWideHydration(route.metadata, fallbackReason);
+    const remainingRootCount = () =>
+      applicableLayouts.reduce(
+        (count, layout) =>
+          count +
+          (layout.metadata.hasIsolatedClientBoundaries
+            ? layout.metadata.estimatedIsolatedRootCount
+            : 0),
+        0,
+      ) +
+      (route.metadata.hasIsolatedClientBoundaries ? route.metadata.estimatedIsolatedRootCount : 0);
+
+    // A fallback can expose a later overflow. Re-evaluate the complete chain
+    // until its isolated roots fit instead of stopping after the first owner.
+    while (remainingRootCount() > boundaryLimit) {
+      let accumulatedLayoutRoots = 0;
+      const overflowingLayout = applicableLayouts.find((layout) => {
+        if (layout.metadata.hasIsolatedClientBoundaries) {
+          accumulatedLayoutRoots += layout.metadata.estimatedIsolatedRootCount;
+        }
+        return accumulatedLayoutRoots > boundaryLimit;
+      });
+
+      if (overflowingLayout) {
+        restoreRouteWideHydration(overflowingLayout.metadata, fallbackReason);
+        continue;
+      }
+      if (route.metadata.hasIsolatedClientBoundaries) {
+        restoreRouteWideHydration(route.metadata, fallbackReason);
+        continue;
+      }
+      break;
     }
   }
 
