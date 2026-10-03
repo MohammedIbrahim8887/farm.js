@@ -384,6 +384,68 @@ describe("htmlToMarkdown", () => {
     ).toBe("> Run this:\n> ```\n> pnpm install\n>\n> pnpm dev\n> ```\n");
   });
 
+  it("leaves out what is hidden from assistive technology", () => {
+    const markdown = (html: string) =>
+      htmlToMarkdown(`<main>${html}</main>`, { includeMetadata: false });
+
+    expect(markdown('<p>Build<span aria-hidden="true"> / </span>Ship</p>')).toBe("BuildShip\n");
+    // A marquee's duplicated copy, nested elements of the same name included.
+    expect(
+      markdown(
+        '<div>React Vite</div><div aria-hidden="true"><div>React</div> Vite</div><p>After</p>',
+      ),
+    ).toBe("React Vite\n\nAfter\n");
+    expect(markdown('<svg ARIA-HIDDEN="TRUE"><path d="M0"/><title>Icon</title></svg>Label')).toBe(
+      "Label\n",
+    );
+    expect(markdown('<p>Shown</p><div hidden>Hidden</div><input hidden value="x"><p>End</p>')).toBe(
+      "Shown\n\nEnd\n",
+    );
+    // `<b>` closes at `</b>`, not at the `<br>` after it.
+    expect(markdown('<p><b aria-hidden="true">x</b><br>kept</p>')).toBe("kept\n");
+  });
+
+  it("leaves out hidden page wrappers and reads tags whole when finding the hidden end", () => {
+    const markdown = (html: string) => htmlToMarkdown(html, { includeMetadata: false });
+
+    // The wrapper's own attribute counts, though extraction drops the wrapper tag.
+    expect(markdown('<body><main aria-hidden="true"><p>Decor</p></main><p>Kept</p></body>')).toBe(
+      "Kept\n",
+    );
+    // A slash ending an unquoted value does not make the element self-closing.
+    expect(
+      markdown(
+        '<main><p><a aria-hidden="true" href=/docs/>Skip</a><a href="/x">Kept</a></p></main>',
+      ),
+    ).toBe("[Kept](/x)\n");
+    expect(
+      markdown('<main><div aria-hidden="true"><div class=x/>a</div>b</div><p>Kept</p></main>'),
+    ).toBe("Kept\n");
+    // A closing tag written inside an attribute value does not end the element.
+    expect(
+      markdown(
+        '<main><div aria-hidden="true"><span title="</div>">x</span>secret</div><p>Kept</p></main>',
+      ),
+    ).toBe("Kept\n");
+    // A hidden-looking string inside a script never removes page content.
+    expect(
+      markdown('<main><script>const t = "<div hidden>";</script><div><p>Kept</p></div></main>'),
+    ).toBe("Kept\n");
+  });
+
+  it("keeps content that is only described as hidden, or can be revealed", () => {
+    const markdown = (html: string) =>
+      htmlToMarkdown(`<main>${html}</main>`, { includeMetadata: false });
+
+    expect(markdown('<p title="a hidden gem" data-x=\'aria-hidden="true"\'>Visible</p>')).toBe(
+      "Visible\n",
+    );
+    expect(markdown('<p aria-hidden="false">Read me</p>')).toBe("Read me\n");
+    expect(markdown('<div hidden="until-found">Findable</div>')).toBe("Findable\n");
+    // Unclosed, the element is kept rather than taking the rest of the page.
+    expect(markdown('<div aria-hidden="true">Unclosed<p>Rest</p>')).toBe("Unclosed\n\nRest\n");
+  });
+
   it("decodes text outside paragraphs, such as in a div or span", () => {
     expect(
       htmlToMarkdown("<main><div>Tom &amp; Jerry&#x27;s</div></main>", { includeMetadata: false }),

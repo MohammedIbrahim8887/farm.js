@@ -228,11 +228,18 @@ export function htmlToMarkdown(
   } = {},
 ): string {
   const title = options.title ?? extractHtmlTitle(html);
-  let source = extractHtmlBody(html)
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "");
+  // Hidden elements go before the body is extracted, since extraction drops the
+  // <main> or <body> tag whose own attributes may hide it, and after scripts go,
+  // so markup quoted in a script string is never read as an element.
+  let source = extractHtmlBody(
+    removeHiddenElements(
+      html
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+        .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, "")
+        .replace(/<!--[\s\S]*?-->/g, ""),
+    ),
+  );
 
   // Code blocks are set aside behind placeholders so the tidying below never
   // touches them, and each gets a fence longer than any backtick run inside it,
@@ -555,6 +562,97 @@ function toInlineMarkdown(html: string): string {
     .replace(BOX_TAGS, " ");
 
   return stripTags(source).replace(/\s+/g, " ");
+}
+
+// Elements with no closing tag, which an attribute can hide on their own.
+const VOID_TAGS = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "source",
+  "track",
+  "wbr",
+]);
+
+/**
+ * Removes elements hidden from assistive technology, with everything inside
+ * them: `aria-hidden="true"`, which marks decoration such as separators and the
+ * duplicated copy of a marquee, and the `hidden` attribute. A reader of the
+ * Markdown mirror should get what a screen reader gets. `hidden="until-found"`
+ * stays, since that content can still be found and revealed.
+ */
+function removeHiddenElements(html: string): string {
+  const openingTag = /<([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+  let result = "";
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = openingTag.exec(html))) {
+    const [tag, name, attributes] = match;
+    if (!isHiddenElement(attributes)) continue;
+    const start = match.index;
+    let end = start + tag.length;
+    if (!VOID_TAGS.has(name.toLowerCase()) && !isSelfClosingTag(tag)) {
+      // Unclosed, it is left in place rather than taking the rest of the page with it.
+      const close = findClosingTagEnd(html, name, end);
+      if (close === undefined) continue;
+      end = close;
+    }
+    result += html.slice(cursor, start);
+    cursor = end;
+    openingTag.lastIndex = end;
+  }
+  return result + html.slice(cursor);
+}
+
+function isHiddenElement(attributes: string): boolean {
+  const attribute = /([^\s"'=<>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = attribute.exec(attributes))) {
+    const name = match[1]!.toLowerCase();
+    const value = (match[2] ?? match[3] ?? match[4] ?? "").trim().toLowerCase();
+    if (name === "aria-hidden" && value === "true") return true;
+    if (name === "hidden" && value !== "until-found") return true;
+  }
+  return false;
+}
+
+/**
+ * `<path d="M0" />`, but not `<a href=/docs/>`, whose slash ends an unquoted
+ * value. HTML ignores the flag on other elements, but honoring it where it is
+ * written keeps a self-closed SVG child from pairing with a later close tag.
+ */
+function isSelfClosingTag(tag: string): boolean {
+  return /(?:^<[a-zA-Z][\w:-]*|[\s"'])\/>$/.test(tag);
+}
+
+/**
+ * The end of the tag that closes the element opened before `from`, counting
+ * nesting. Every tag is matched whole, quoted attribute values included, so a
+ * tag written inside an attribute value is never taken for a real one.
+ */
+function findClosingTagEnd(html: string, name: string, from: number): number | undefined {
+  const tags = /<(\/?)([a-zA-Z][\w:-]*)(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+  tags.lastIndex = from;
+  const target = name.toLowerCase();
+  let depth = 1;
+  let match: RegExpExecArray | null;
+  while ((match = tags.exec(html))) {
+    if (match[2]!.toLowerCase() !== target) continue;
+    if (match[1]) {
+      depth -= 1;
+      if (depth === 0) return match.index + match[0].length;
+    } else if (!isSelfClosingTag(match[0])) {
+      depth += 1;
+    }
+  }
+  return undefined;
 }
 
 function stripTags(input: string): string {
