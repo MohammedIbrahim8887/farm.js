@@ -23,17 +23,22 @@ cd my-app
 pnpm dev
 ```
 
-This command follows the current `beta` dist-tag and explicitly selects the minimal Basic starter.
-`PNPM_CONFIG_DLX_CACHE_MAX_AGE=0` refreshes pnpm's one-day `create`/`dlx` cache so the current beta
-is resolved on every run. The scoped `PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE` setting allows fresh
-`@farm.js/*` betas without disabling pnpm's release-age protection for third-party packages.
-Generated pnpm projects preserve that scoped exclusion.
-Use `pnpm create`, not `pnpm add`: pnpm resolves the `@farm.js/app` initializer name to the
-published `@farm.js/create-app` package. The scaffolder installs React and all other starter
-dependencies automatically. Use `--skip-install` if you only want it to generate the project
-files.
+This command explicitly selects the minimal Basic starter. Use `pnpm create`, not `pnpm add`: pnpm
+resolves the `@farm.js/app` initializer name to the published `@farm.js/create-app` package. The
+scaffolder installs React and all other starter dependencies automatically. Use `--skip-install` if
+you only want it to generate the project files.
 
-In PowerShell, set the variables first:
+Right after a release, pnpm can still start the previous initializer: its `create` cache lasts a
+day, and pnpm 11's default release-age policy holds back packages published in the last day. Set
+both for the shell, then run the command again:
+
+```bash
+export PNPM_CONFIG_DLX_CACHE_MAX_AGE=0
+export PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE='["@farm.js/*"]'
+pnpm create @farm.js/app my-app --template basic --typescript
+```
+
+In PowerShell:
 
 ```powershell
 $env:PNPM_CONFIG_DLX_CACHE_MAX_AGE = "0"
